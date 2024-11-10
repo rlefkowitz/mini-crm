@@ -27,63 +27,36 @@ AUTH_SECRET = pwd.genword()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # On app startup
-    log.info(" ~~~ Initializing app ~~~ \n")
-
     init_db()
-
-    # Handoff to the app
-    log.info(" ~~~ App initializations complete, starting now! ~~~ \n")
     log.info("\n" + pyfiglet.figlet_format("Mini CRM API") + "\n")
     yield
 
-    # On app shutdown
-    log.info(" ~~~ App shutting down! Attempting to handle gracefully ~~~ \n")
-
     handle_pending_tasks()
     handle_disconnect_db()
-
-    log.info(" ~~~ App shutdown complete ~~~ \n")
 
 
 def init_loggers():
     """
     Initialize logger levels
     Sets root logging level to env.LOGGING_LEVEL or INFO
-    Sets the uvicorn error logger to WARNING
-    TODO: we can customize the logging format here
     """
     log_level = logging._nameToLevel.get(
         os.environ.get("LOGGING_LEVEL", "INFO").upper()
     )
     logging.getLogger().setLevel(log_level)
 
-    # Info messages from uvicorn are duplicated in the console, so ignore them
-    # also they're ugly (why is app startup an error?)
     uvicorn_logger = logging.getLogger("uvicorn.error")
     uvicorn_logger.setLevel(logging.WARNING)
-    logging.getLogger("azure.eventhub._pyamqp").setLevel(logging.WARNING)
-
-    logging.info(
-        f"Initialized root logger with level {logging.getLevelName(logging.root.level)}"
-    )
 
 
 def init_db():
-    """
-    Initializes the database
-    Establishes a connection to the database
-    Runs schema migrations and startup scripts
-    TODO: running migrations at startup may be problematic when we scale horizontally
-    """
-
     if envs.get_env() in envs.SQLITE_ENVS:
         log.info("Skipping DB initialization: running in SQLite env\n")
         return
 
     log.info("Initializing DB...")
 
-    # Retries connection every 5s for 5 attempts then gives up
+    # Retry every 5s, 5 times
     database.establish_connection()
     database.migrate()
 
@@ -99,20 +72,15 @@ def init_debugger():
 
 
 def handle_pending_tasks():
-    log.info("Handling pending tasks...")
     loop = asyncio.get_event_loop()
     pending = asyncio.all_tasks(loop)
 
     if not pending:
-        log.info("No pending tasks\n")
         return
 
-    log.info(f"Shutting down with {len(pending)} pending tasks:")
     for t in pending:
         log.info(f"  {t}")
         # TODO: if any tasks are unexpected, log.warning or do something about it
-
-    log.info("Pending task handling complete (just printing these logs for now)\n")
 
 
 def handle_disconnect_db():
@@ -129,7 +97,6 @@ try:
 
     # API Docs are unprotected only when running locally
     if envs.get_env() in envs.HOSTED_ENVS:
-        log.info("Starting app in hosted mode (docs protected)\n")
         app = FastAPI(
             lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
         )
