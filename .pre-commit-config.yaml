@@ -1,0 +1,51 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+exclude: '(migrations|\.git|docker|\.sh|\*\.ini|\*\.toml)'
+
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v3.2.0
+      hooks:
+          - id: trailing-whitespace
+          - id: end-of-file-fixer
+          - id: check-added-large-files
+
+    - repo: local
+      hooks:
+          - id: black
+            name: black
+            description: "Black: The uncompromising Python code formatter"
+            entry: black
+            language: python
+            minimum_pre_commit_version: 2.9.2
+            require_serial: true
+            types_or: [python, pyi]
+
+    - repo: local
+      hooks:
+          - id: isort
+            entry: isort
+            name: isort
+            stages: [commit, merge-commit]
+            require_serial: true
+            language: python
+            types_or: [cython, pyi, python]
+            args: ["--filter-files", "--profile=black"]
+            minimum_pre_commit_version: 2.9.2
+
+    # TODO: We should turn this on and start addressing some of the issues
+    # - repo: local
+    #   hooks:
+    #     - id: pylint
+    #       entry: pylint
+    #       name: pylint
+    #       language: system
+    #       types: [python]
+    #       verbose: true
+    #       args:
+    #         [
+    #           "-rn", # Only display messages
+    #           "-sn", # Don't display the score
+    #           "--rcfile=.pylintrc", # Link to your config file
+    #           "--fail-under=0",
+    #         ]
