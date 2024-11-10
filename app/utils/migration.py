@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from sqlmodel import Session
 
-from app.database import engine
+from app.databases.database import engine
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Table
 

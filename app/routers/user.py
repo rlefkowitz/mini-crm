@@ -1,12 +1,10 @@
 import asyncio
 import json
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlmodel import select
+from sqlmodel import Session, select
 
-from app.database import get_session
+from app.databases.database import get_session
 from app.models.user import User
 from app.schemas.user import UserCreate, UserRead
 from app.websocket import manager
@@ -16,7 +14,7 @@ router = APIRouter()
 
 @router.post("/users/", response_model=UserRead)
 def create_user(user: UserCreate, session: Session = Depends(get_session)):
-    db_user = User.from_orm(user)
+    db_user = User.model_validate(user)
     session.add(db_user)
     try:
         session.commit()
@@ -40,7 +38,7 @@ def create_user(user: UserCreate, session: Session = Depends(get_session)):
     return db_user
 
 
-@router.get("/users/", response_model=List[UserRead])
+@router.get("/users/", response_model=list[UserRead])
 def read_users(session: Session = Depends(get_session)):
     users = session.exec(select(User)).all()
     return users

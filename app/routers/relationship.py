@@ -1,12 +1,11 @@
 import asyncio
 import json
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlmodel import select, text
+from sqlmodel import select
 
-from app.database import get_session
+from app.databases.database import get_session
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Table
 from app.schemas.relationship import (
@@ -99,11 +98,13 @@ def create_relationship(
         name=db_relationship.name,
         from_table=from_table.name,
         to_table=to_table.name,
-        attributes=[RelationshipAttributeRead.from_orm(attr) for attr in attributes],
+        attributes=[
+            RelationshipAttributeRead.model_validate(attr) for attr in attributes
+        ],
     )
 
 
-@router.get("/relationships/", response_model=List[RelationshipRead])
+@router.get("/relationships/", response_model=list[RelationshipRead])
 def read_relationships(session: Session = Depends(get_session)):
     relationships = session.exec(select(RelationshipModel)).all()
     response = []
@@ -122,7 +123,8 @@ def read_relationships(session: Session = Depends(get_session)):
                 from_table=from_table.name if from_table else "",
                 to_table=to_table.name if to_table else "",
                 attributes=[
-                    RelationshipAttributeRead.from_orm(attr) for attr in attributes
+                    RelationshipAttributeRead.model_validate(attr)
+                    for attr in attributes
                 ],
             )
         )

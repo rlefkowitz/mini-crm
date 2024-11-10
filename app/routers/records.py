@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlmodel import select, text
 
-from app.database import get_session
+from app.databases.database import get_session
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Column, Table
 from app.schemas.schema import ColumnRead

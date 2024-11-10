@@ -30,8 +30,5 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            # Optionally handle incoming messages
-            # For example, you can implement subscription or specific actions
-            pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
