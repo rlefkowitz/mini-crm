@@ -14,49 +14,90 @@ Welcome to **Mini CRM**! This project serves as a straightforward customer relat
 
 ---
 
-## 🚀 Getting Started
+## 🧑‍💻 Development Installation
 
-### Prerequisites
-Ensure you have Docker installed for the backend and Yarn for the frontend. Check the [attached README](README.md) for additional requirements if necessary.
+### Backend Setup
 
-### Installation
+For local development on a Unix system:
 
-1. **Clone the Repository**:
+1. Clone the repository and set up the environment:
+
+   ```bash
+   make setup-environment
+   source venv/bin/activate
+   ```
+
+   Ensure VSCode's Python interpreter points to `venv/`.
+
+2. For non-Unix systems, clone and install dependencies manually:
+
    ```bash
    git clone https://github.com/your-username/mini-crm.git
    cd mini-crm
+   python3.12 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
    ```
 
-2. **Backend Setup**:
-   - Use Docker to set up the backend environment. Refer to the backend instructions in the [README](README.md) for detailed steps.
+### 🔗 Enable Git Hooks
+Install necessary Python packages and activate Git hooks:
 
-3. **Frontend Setup**:
-   - Navigate to the frontend directory and install dependencies:
-     ```bash
-     cd frontend
-     yarn install
-     yarn start
-     ```
+```bash
+pip install -r requirements.txt
+pre-commit install
+```
+
+---
+
+## 🐳 Docker: Build and Run
+
+To build and launch the Docker container:
+
+```bash
+make up
+```
+
+The service should now be live at: [http://localhost:<backend-port>](http://localhost:<backend-port>)
+
+### API Documentation
+
+Access API documentation at:
+- Swagger: [http://localhost:<backend-port>/docs](http://localhost:<backend-port>/docs)
+- ReDoc: [http://localhost:<backend-port>/redoc](http://localhost:<backend-port>/redoc)
+
+The API Docker container mounts a volume from the current directory and runs `uvicorn` with the `--reload` flag. This enables live reloading, so any code changes on the host will immediately reflect in the running service.
+
+---
+
+## 🚀 Frontend Setup
+
+1. **Navigate to the Frontend Directory**:
+
+   ```bash
+   cd frontend
+   ```
+
+2. **Install Dependencies and Start the Application**:
+
+   ```bash
+   yarn install
+   yarn start
+   ```
 
    This will launch the frontend, making it accessible at `http://localhost:3000` by default.
 
 ---
 
-## 🐳 Running with Docker
+## ⚙️ Other Useful Commands
 
-To bring up the complete application:
+- **Tear Down Containers**:
+  - `make down`: Destroy containers and volumes.
+  - `make clean`: Destroy all containers, images, networks, and volumes! ⚠️
+- **Build & Run**:
+  - `make build`: Build the Docker image for the API.
+- **Database & Requirements**:
+  - `make regen-requirements`: Update and install requirements in `requirements.txt`.
 
-```bash
-docker-compose up --build
-```
-
-Once the containers are built, the service will be accessible at `http://localhost:<backend-port>`.
+📘 Refer to the [Makefile](Makefile) for detailed command explanations. You can also chain commands, e.g., `make clean build`, `make down up`, etc.
 
 ---
-
-## 📜 Additional Documentation
-
-- For further instructions and specific commands, please refer to the original [README](README.md).
-- Any setup beyond basic installation can be found within the [Dockerfile](Dockerfile) and [Makefile](Makefile).
-
-### ✨ Happy CRM Building!
