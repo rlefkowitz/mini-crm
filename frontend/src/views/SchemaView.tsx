@@ -33,7 +33,7 @@ const SchemaView: React.FC = () => {
 
     const fetchTables = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/tables/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
             setTables(response.data);
         } catch (error) {
             console.error('Error fetching tables:', error);
@@ -56,7 +56,7 @@ const SchemaView: React.FC = () => {
 
     const handleCreateTable = async () => {
         try {
-            await axios.post(`${process.env.REACT_APP_API_BASE_URL}/tables/`, {name: newTableName});
+            await axios.post(`${process.env.API_BASE_URL}/tables/`, {name: newTableName});
             handleCloseDialog();
             fetchTables();
         } catch (error) {
@@ -67,7 +67,7 @@ const SchemaView: React.FC = () => {
 
     const handleDeleteTable = async (tableId: number) => {
         try {
-            await axios.delete(`${process.env.REACT_APP_API_BASE_URL}/tables/${tableId}`);
+            await axios.delete(`${process.env.API_BASE_URL}/tables/${tableId}`);
             fetchTables();
             if (selectedTable?.id === tableId) setSelectedTable(null);
         } catch (error) {

@@ -20,7 +20,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
 
     const fetchSchema = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/current_schema/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/current_schema/`);
             setSchema(response.data);
         } catch (error) {
             console.error('Error fetching schema:', error);
@@ -104,9 +104,9 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
         onSubmit: async values => {
             try {
                 if (mode === 'create') {
-                    await axios.post(`${process.env.REACT_APP_API_BASE_URL}/records/${tableName}/`, values);
+                    await axios.post(`${process.env.API_BASE_URL}/records/${tableName}/`, values);
                 } else if (mode === 'update' && recordId) {
-                    await axios.put(`${process.env.REACT_APP_API_BASE_URL}/records/${tableName}/${recordId}/`, values);
+                    await axios.put(`${process.env.API_BASE_URL}/records/${tableName}/${recordId}/`, values);
                 }
                 if (onSuccess) onSuccess();
             } catch (error) {

@@ -19,11 +19,11 @@ class RelationshipModel(SQLModel, table=True):
 
     from_table: Optional["Table"] = Relationship(
         back_populates="relationships_from",
-        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.from_table_id"},
+        sa_relationship_kwargs=dict(foreign_keys="[RelationshipModel.from_table_id]"),
     )
     to_table: Optional["Table"] = Relationship(
         back_populates="relationships_to",
-        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.to_table_id"},
+        sa_relationship_kwargs=dict(foreign_keys="[RelationshipModel.from_table_id]"),
     )
 
     attributes_list: list["RelationshipAttribute"] = Relationship(

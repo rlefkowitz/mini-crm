@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
+import {useEffect} from 'react';
 
 type MessageHandler = (message: any) => void;
 
 const useWebSocket = (onMessage: MessageHandler) => {
     useEffect(() => {
-        const ws = new WebSocket(process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws');
+        const ws = new WebSocket(process.env.WS_URL || 'ws://localhost:8000/ws');
 
         ws.onopen = () => {
             console.log('WebSocket connected');
@@ -12,12 +12,12 @@ const useWebSocket = (onMessage: MessageHandler) => {
             // ws.send(JSON.stringify({ type: 'authenticate', token: 'your_token' }));
         };
 
-        ws.onmessage = (event) => {
+        ws.onmessage = event => {
             try {
                 const message = JSON.parse(event.data);
                 onMessage(message);
             } catch (error) {
-                console.error("Error parsing WebSocket message:", error);
+                console.error('Error parsing WebSocket message:', error);
             }
         };
 
@@ -26,7 +26,7 @@ const useWebSocket = (onMessage: MessageHandler) => {
             // Optionally implement reconnection logic here
         };
 
-        ws.onerror = (error) => {
+        ws.onerror = error => {
             console.error('WebSocket error:', error);
         };
 

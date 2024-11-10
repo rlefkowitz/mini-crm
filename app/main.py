@@ -84,7 +84,7 @@ def init_db():
 
     # Retries connection every 5s for 5 attempts then gives up
     database.establish_connection()
-    database.init_db()
+    database.migrate()
 
     log.info("DB initialization complete\n")
 
@@ -136,13 +136,13 @@ try:
         log.info("Starting app in local mode\n")
         app = FastAPI(lifespan=lifespan)
 
+    app.include_router(router)
+
     app.mount(
         "/",
         StaticFiles(directory="static", html=True),
         name="Mini CRM",
     )
-
-    app.include_router(router)
 
     app.add_middleware(SessionMiddleware, secret_key=AUTH_SECRET)
     app.add_middleware(

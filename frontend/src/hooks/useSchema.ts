@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import axios from 'axios';
-import { TableSchema } from '../types';
+import {TableSchema} from '../types';
 import useWebSocket from './useWebSocket';
 
 const useSchema = () => {
@@ -9,16 +9,16 @@ const useSchema = () => {
 
     const fetchSchema = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/current_schema/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/current_schema/`);
             setSchema(response.data);
         } catch (error) {
-            console.error("Error fetching schema:", error);
+            console.error('Error fetching schema:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    useWebSocket((message) => {
+    useWebSocket(message => {
         if (message.type === 'schema_update') {
             fetchSchema();
         }
@@ -30,7 +30,7 @@ const useSchema = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { schema, loading };
+    return {schema, loading};
 };
 
 export default useSchema;

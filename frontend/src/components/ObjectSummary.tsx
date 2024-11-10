@@ -14,7 +14,7 @@ const ObjectSummary: React.FC<ObjectSummaryProps> = ({tableName, recordId}) => {
 
     const fetchRelationships = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/relationships/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/relationships/`);
             setRelationships(response.data);
         } catch (error) {
             console.error('Error fetching relationships:', error);
@@ -30,7 +30,7 @@ const ObjectSummary: React.FC<ObjectSummaryProps> = ({tableName, recordId}) => {
             const queryParam = isFrom ? fromField : toField;
             // const relatedTable = isFrom ? relationship.to_table : relationship.from_table;
 
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/records/${relationship.name}/`, {
+            const response = await axios.get(`${process.env.API_BASE_URL}/records/${relationship.name}/`, {
                 params: {[queryParam]: recordId},
             });
 

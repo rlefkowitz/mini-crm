@@ -36,7 +36,7 @@ const RelationshipManagement: React.FC = () => {
 
     const fetchRelationships = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/relationships/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/relationships/`);
             setRelationships(response.data);
         } catch (error) {
             console.error('Error fetching relationships:', error);
@@ -45,7 +45,7 @@ const RelationshipManagement: React.FC = () => {
 
     const fetchTables = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/tables/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
             setTables(response.data);
         } catch (error) {
             console.error('Error fetching tables:', error);
@@ -74,7 +74,7 @@ const RelationshipManagement: React.FC = () => {
 
     const handleCreateRelationship = async () => {
         try {
-            await axios.post(`${process.env.REACT_APP_API_BASE_URL}/relationships/`, newRelationship);
+            await axios.post(`${process.env.API_BASE_URL}/relationships/`, newRelationship);
             handleCloseDialog();
             fetchRelationships();
         } catch (error) {
@@ -85,7 +85,7 @@ const RelationshipManagement: React.FC = () => {
 
     const handleDeleteRelationship = async (relationshipId: number) => {
         try {
-            await axios.delete(`${process.env.REACT_APP_API_BASE_URL}/relationships/${relationshipId}`);
+            await axios.delete(`${process.env.API_BASE_URL}/relationships/${relationshipId}`);
             fetchRelationships();
         } catch (error) {
             console.error('Error deleting relationship:', error);

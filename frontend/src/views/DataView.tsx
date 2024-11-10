@@ -33,7 +33,7 @@ const DataView: React.FC = () => {
 
     const fetchTables = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/tables/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
             setTables(response.data);
         } catch (error) {
             console.error('Error fetching tables:', error);
@@ -42,7 +42,7 @@ const DataView: React.FC = () => {
 
     const fetchRecords = async () => {
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/records/${selectedTable}/`);
+            const response = await axios.get(`${process.env.API_BASE_URL}/records/${selectedTable}/`);
             setRecords(response.data);
         } catch (error) {
             console.error('Error fetching records:', error);
@@ -78,7 +78,7 @@ const DataView: React.FC = () => {
 
     const handleDelete = async (recordId: number) => {
         try {
-            await axios.delete(`${process.env.REACT_APP_API_BASE_URL}/records/${selectedTable}/${recordId}/`);
+            await axios.delete(`${process.env.API_BASE_URL}/records/${selectedTable}/${recordId}/`);
             fetchRecords();
         } catch (error) {
             console.error('Error deleting record:', error);

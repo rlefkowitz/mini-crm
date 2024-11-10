@@ -3,6 +3,10 @@ from os import environ
 from sys import stdout
 from time import sleep
 
+from alembic import command
+from alembic.config import Config
+from alembic.runtime import migration
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -20,10 +24,6 @@ def _get_engine(env: str):
         engine = create_engine(
             DATABASE_URL,
             connect_args=connect_args,
-            pool_size=10,
-            max_overflow=20,
-            pool_timeout=30,
-            pool_recycle=1800,
             pool_pre_ping=True,
             echo_pool=True,
         )
@@ -34,11 +34,6 @@ def _get_engine(env: str):
         connect_args = {}
         engine = create_engine(
             DATABASE_URL,
-            pool_size=10,
-            max_overflow=20,
-            pool_timeout=30,
-            pool_recycle=1800,
-            pool_pre_ping=True,
             echo_pool=True,
         )
 
@@ -156,6 +151,44 @@ def delete(db_objs: list[SQLModel], db: Session):
     return True
 
 
+def migrate() -> None:
+    """
+    Migrates database tables programmatically
+    This is called only at app startup in main.py
+    """
+    log.info("Attempting to run DB migrations")
+
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option("script_location", "migrations")
+
+    DATABASE_URL = f"postgresql+psycopg2://{environ['DB_USER']}:{environ['DB_PASS']}@{environ['DB_HOST']}:{environ['DB_PORT']}/{environ['DB_NAME']}"
+    alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+
+    log.info("Attempting to get current DB revision...")
+    db_rev = None
+    code_rev = None
+    engine = _get_engine(env=environ.get("ENVIRONMENT", "dev"))
+    with engine.begin() as conn:
+        db_rev = migration.MigrationContext.configure(conn).get_current_revision()
+        code_rev = ScriptDirectory.from_config(alembic_cfg).get_current_head()
+    log.info(f"DB revision: {db_rev}, code revision: {code_rev}")
+
+    if db_rev == code_rev:
+        log.info(f"DB is up to date ({db_rev}), no migrations required")
+        return
+
+    try:
+        log.info(f"DB revision: {db_rev}, code revision: {code_rev}")
+        command.upgrade(alembic_cfg, "head")
+        log.info("DB migrations complete, current DB revision: ")
+        command.current(alembic_cfg)
+    except Exception as e:
+        log.error(f"DB migrations failed: {e}", exc_info=True)
+        raise e
+    finally:
+        stdout.flush()
+
+
 def ensure_disconnect():
     """
     Handles closing the database connection
@@ -169,7 +202,3 @@ def ensure_disconnect():
         log.warning("Engine instance not found or already disposed.")
     log.info("DB disconnect complete\n")
     return True
-
-
-def init_db():
-    SQLModel.metadata.create_all(get_engine())
