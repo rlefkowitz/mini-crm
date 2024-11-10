@@ -9,9 +9,9 @@ from sqlmodel import SQLModel
 
 load_dotenv(override=True)
 
-from app.models.user import (  # import anything from the API schema to populate SQLModel.metadata
-    User,
-)
+from app.models.relationship import *
+from app.models.schema import *
+from app.models.user import *
 from utilities import envs
 
 # this is the Alembic Config object, which provides

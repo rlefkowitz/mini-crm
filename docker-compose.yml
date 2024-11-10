@@ -4,13 +4,12 @@ services:
     networks:
       - crm-network
     build:
-      context: ./
-      dockerfile: ./Dockerfile
+      context: .
+      dockerfile: Dockerfile.dev
     ports:
       - "8000:8000"
     volumes:
       - ./:/mini-crm/
-      - static_volume:/mini-crm/static
     environment:
       DB_HOST: "db"
       DB_PORT: "5432"

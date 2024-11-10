@@ -17,8 +17,8 @@ import {
     IconButton,
     Typography,
 } from '@mui/material';
-import {AddCircle, RemoveCircle} from '@mui/icons-material';
-import axios from 'axios';
+import {RemoveCircle} from '@mui/icons-material';
+import axios from '../utils/axiosConfig';
 import {RelationshipRead, TableRead} from '../types';
 import DynamicAttributeForm from './DynamicAttributeForm';
 

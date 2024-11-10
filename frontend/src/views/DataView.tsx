@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 import {
     Button,
     Select,
@@ -17,6 +17,7 @@ import {
     DialogActions,
     Typography,
     Paper,
+    Grid,
 } from '@mui/material';
 import DynamicForm from '../components/DynamicForm';
 import useSchema from '../hooks/useSchema';
@@ -33,7 +34,7 @@ const DataView: React.FC = () => {
 
     const fetchTables = async () => {
         try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
+            const response = await axios.get(`/tables/`);
             setTables(response.data);
         } catch (error) {
             console.error('Error fetching tables:', error);
@@ -42,7 +43,7 @@ const DataView: React.FC = () => {
 
     const fetchRecords = async () => {
         try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/records/${selectedTable}/`);
+            const response = await axios.get(`/records/${selectedTable}/`);
             setRecords(response.data);
         } catch (error) {
             console.error('Error fetching records:', error);
@@ -78,7 +79,7 @@ const DataView: React.FC = () => {
 
     const handleDelete = async (recordId: number) => {
         try {
-            await axios.delete(`${process.env.API_BASE_URL}/records/${selectedTable}/${recordId}/`);
+            await axios.delete(`/records/${selectedTable}/${recordId}/`);
             fetchRecords();
         } catch (error) {
             console.error('Error deleting record:', error);
@@ -88,8 +89,8 @@ const DataView: React.FC = () => {
     if (loading) return <Typography>Loading schema...</Typography>;
 
     return (
-        <div style={{display: 'flex'}}>
-            <div style={{flex: 3}}>
+        <Grid container spacing={2}>
+            <Grid item xs={12} md={8}>
                 <Typography variant="h4" gutterBottom>
                     Data Management
                 </Typography>
@@ -181,14 +182,14 @@ const DataView: React.FC = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
-            </div>
-            <div style={{flex: 1, paddingLeft: '1rem'}}>
+            </Grid>
+            <Grid item xs={12} md={4}>
                 {selectedTable && records.length > 0 && (
                     <ObjectSummary tableName={selectedTable} recordId={records[0].id} />
                     // You can enhance this by allowing users to select specific records
                 )}
-            </div>
-        </div>
+            </Grid>
+        </Grid>
     );
 };
 

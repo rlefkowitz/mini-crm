@@ -1,0 +1,14 @@
+FROM python:3.12.7-bookworm AS build
+
+# Install py reqs
+RUN pip3 install --upgrade pip
+RUN mkdir -p /mini-crm
+WORKDIR /mini-crm
+COPY ./requirements.txt /mini-crm/requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Initialize the app in dev mode
+COPY . /mini-crm/
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

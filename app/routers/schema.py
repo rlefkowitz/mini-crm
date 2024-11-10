@@ -1,13 +1,14 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlmodel import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlmodel import Session, select
 
 from app.databases.database import get_session
 from app.models.relationship import RelationshipModel
 from app.models.schema import Column, Table
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.schema import ColumnCreate, ColumnRead, TableCreate, TableRead
 from app.utils.migration import add_column, create_table, drop_column, drop_table
 from app.websocket import manager
@@ -17,7 +18,12 @@ router = APIRouter()
 
 # Table CRUD
 @router.post("/tables/", response_model=TableRead)
-def create_table_endpoint(table: TableCreate, session: Session = Depends(get_session)):
+def create_table_endpoint(
+    table: TableCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     db_table = Table(name=table.name)
     session.add(db_table)
     try:
@@ -28,28 +34,34 @@ def create_table_endpoint(table: TableCreate, session: Session = Depends(get_ses
         session.rollback()
         raise HTTPException(status_code=400, detail="Table creation failed") from e
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "create_table",
-                    "table": db_table.name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "create_table",
+                "table": db_table.name,
+            }
+        ),
     )
     return db_table
 
 
 @router.get("/tables/", response_model=list[TableRead])
-def read_tables(session: Session = Depends(get_session)):
+def read_tables(
+    session: Session = Depends(get_session), user: User = Depends(get_current_user)
+):
     tables = session.exec(select(Table)).all()
     return tables
 
 
 @router.delete("/tables/{table_id}")
-def delete_table_endpoint(table_id: int, session: Session = Depends(get_session)):
+def delete_table_endpoint(
+    table_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     table = session.get(Table, table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -62,16 +74,15 @@ def delete_table_endpoint(table_id: int, session: Session = Depends(get_session)
         session.rollback()
         raise HTTPException(status_code=400, detail="Table deletion failed") from e
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "delete_table",
-                    "table": table_name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "delete_table",
+                "table": table_name,
+            }
+        ),
     )
     return {"ok": True}
 
@@ -79,7 +90,11 @@ def delete_table_endpoint(table_id: int, session: Session = Depends(get_session)
 # Column CRUD
 @router.post("/tables/{table_id}/columns/", response_model=ColumnRead)
 def create_column_endpoint(
-    table_id: int, column: ColumnCreate, session: Session = Depends(get_session)
+    table_id: int,
+    column: ColumnCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     table = session.get(Table, table_id)
     if not table:
@@ -101,23 +116,26 @@ def create_column_endpoint(
         session.rollback()
         raise HTTPException(status_code=400, detail="Column creation failed") from e
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "create_column",
-                    "table": table.name,
-                    "column": db_column.name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "create_column",
+                "table": table.name,
+                "column": db_column.name,
+            }
+        ),
     )
     return db_column
 
 
 @router.get("/tables/{table_id}/columns/", response_model=list[ColumnRead])
-def read_columns(table_id: int, session: Session = Depends(get_session)):
+def read_columns(
+    table_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     table = session.get(Table, table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -126,7 +144,12 @@ def read_columns(table_id: int, session: Session = Depends(get_session)):
 
 
 @router.delete("/columns/{column_id}")
-def delete_column_endpoint(column_id: int, session: Session = Depends(get_session)):
+def delete_column_endpoint(
+    column_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     column = session.get(Column, column_id)
     if not column:
         raise HTTPException(status_code=404, detail="Column not found")
@@ -140,24 +163,25 @@ def delete_column_endpoint(column_id: int, session: Session = Depends(get_sessio
         session.rollback()
         raise HTTPException(status_code=400, detail="Column deletion failed") from e
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "delete_column",
-                    "table": table.name,
-                    "column": column_name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "delete_column",
+                "table": table.name,
+                "column": column_name,
+            }
+        ),
     )
     return {"ok": True}
 
 
 # Current Schema Endpoint
 @router.get("/current_schema/")
-def get_current_schema(session: Session = Depends(get_session)):
+def get_current_schema(
+    session: Session = Depends(get_session), user: User = Depends(get_current_user)
+):
     tables = session.exec(select(Table)).all()
     relationships = session.exec(select(RelationshipModel)).all()
     schema = {}

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import pyfiglet
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from passlib import pwd
@@ -18,6 +18,7 @@ load_dotenv()
 
 from app.databases import database
 from app.routes import router
+from app.websocket import router as websocket_router
 
 log = logging.getLogger(__name__)
 
@@ -138,11 +139,14 @@ try:
 
     app.include_router(router)
 
-    app.mount(
-        "/",
-        StaticFiles(directory="static", html=True),
-        name="Mini CRM",
-    )
+    if envs.get_env() in envs.HOSTED_ENVS:
+        app.mount(
+            "/",
+            StaticFiles(directory="static", html=True),
+            name="Mini CRM",
+        )
+
+    app.include_router(websocket_router)
 
     app.add_middleware(SessionMiddleware, secret_key=AUTH_SECRET)
     app.add_middleware(

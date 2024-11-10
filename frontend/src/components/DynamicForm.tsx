@@ -3,7 +3,7 @@ import {useFormik} from 'formik';
 import * as Yup from 'yup';
 import {TableSchema, Column, Record} from '../types';
 import {TextField, Button, MenuItem, FormControl, InputLabel, Select} from '@mui/material';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 
 interface DynamicFormProps {
     tableName: string;

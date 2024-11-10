@@ -1,169 +1,192 @@
 import React, {useEffect, useState} from 'react';
-import {
-    Button,
-    TextField,
-    List,
-    ListItem,
-    ListItemText,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    IconButton,
-    Typography,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-} from '@mui/material';
-import {Delete, Add} from '@mui/icons-material';
-import axios from 'axios';
-import {TableRead, Column, RelationshipRead} from '../types';
-import DynamicForm from '../components/DynamicForm';
+import {Button, TextField, List, ListItem, ListItemText, IconButton, Typography, Grid, Paper, Box} from '@mui/material';
+import {Delete, Add, Visibility} from '@mui/icons-material';
+import axios from '../utils/axiosConfig';
+import {TableRead} from '../types';
 import useSchema from '../hooks/useSchema';
-import ObjectSummary from '../components/ObjectSummary';
+import AddColumnDialog from '../components/AddColumnDialog';
+import AddTableDialog from '../components/AddTableDialog';
+import ColumnListModal from '../components/ColumnListModal';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const SchemaView: React.FC = () => {
-    const {schema, loading} = useSchema();
+    const {schema} = useSchema();
     const [tables, setTables] = useState<TableRead[]>([]);
     const [selectedTable, setSelectedTable] = useState<TableRead | null>(null);
-    const [openDialog, setOpenDialog] = useState<boolean>(false);
-    const [newTableName, setNewTableName] = useState<string>('');
-    const [columns, setColumns] = useState<Column[]>([]);
+    const [openAddColumn, setOpenAddColumn] = useState<boolean>(false);
+    const [openAddTable, setOpenAddTable] = useState<boolean>(false);
+    const [openColumnList, setOpenColumnList] = useState<boolean>(false);
+    const [error, setError] = useState<string>('');
+    const [confirmDelete, setConfirmDelete] = useState<boolean>(false);
+    const [tableToDelete, setTableToDelete] = useState<TableRead | null>(null);
 
     const fetchTables = async () => {
         try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
+            const response = await axios.get(`/tables/`);
             setTables(response.data);
         } catch (error) {
             console.error('Error fetching tables:', error);
+            setError('Failed to load tables.');
         }
     };
 
     useEffect(() => {
         fetchTables();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [schema]);
 
-    const handleOpenDialog = () => {
-        setOpenDialog(true);
+    const handleOpenAddColumn = (table: TableRead) => {
+        setSelectedTable(table);
+        setOpenAddColumn(true);
     };
 
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
-        setNewTableName('');
+    const handleCloseAddColumn = () => {
+        setOpenAddColumn(false);
     };
 
-    const handleCreateTable = async () => {
-        try {
-            await axios.post(`${process.env.API_BASE_URL}/tables/`, {name: newTableName});
-            handleCloseDialog();
-            fetchTables();
-        } catch (error) {
-            console.error('Error creating table:', error);
-            // Optionally, display error messages to users
-        }
+    const handleColumnAdded = () => {
+        fetchTables();
     };
 
-    const handleDeleteTable = async (tableId: number) => {
-        try {
-            await axios.delete(`${process.env.API_BASE_URL}/tables/${tableId}`);
-            fetchTables();
-            if (selectedTable?.id === tableId) setSelectedTable(null);
-        } catch (error) {
-            console.error('Error deleting table:', error);
-            // Optionally, display error messages to users
+    const handleOpenAddTable = () => {
+        setOpenAddTable(true);
+    };
+
+    const handleCloseAddTable = () => {
+        setOpenAddTable(false);
+    };
+
+    const handleTableAdded = () => {
+        fetchTables();
+    };
+
+    const handleDeleteTable = (table: TableRead) => {
+        setTableToDelete(table);
+        setConfirmDelete(true);
+    };
+
+    const confirmDeleteTable = async () => {
+        if (tableToDelete) {
+            try {
+                await axios.delete(`/tables/${tableToDelete.id}/`);
+                fetchTables();
+                setTableToDelete(null);
+                setConfirmDelete(false);
+                if (selectedTable?.id === tableToDelete.id) {
+                    setSelectedTable(null);
+                }
+            } catch (error) {
+                console.error('Error deleting table:', error);
+                setError('Failed to delete table.');
+                setConfirmDelete(false);
+            }
         }
     };
 
     const handleSelectTable = (table: TableRead) => {
         setSelectedTable(table);
-    };
-
-    const handleAddColumn = () => {
-        // Optionally, implement adding columns via UI
-        // For simplicity, we'll handle columns via DynamicForm when a table is selected
+        setOpenColumnList(true);
     };
 
     return (
-        <div style={{display: 'flex'}}>
-            <div style={{flex: 3}}>
+        <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
                 <Typography variant="h4" gutterBottom>
                     Schema Management
                 </Typography>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '1rem'}}>
+                {error && (
+                    <Typography color="error" variant="body2" gutterBottom>
+                        {error}
+                    </Typography>
+                )}
+                <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 2}}>
                     <TextField
                         label="Search Tables"
                         variant="outlined"
                         size="small"
+                        fullWidth
                         // Implement search functionality if needed
                     />
-                    <Button variant="contained" color="primary" startIcon={<Add />} onClick={handleOpenDialog}>
-                        Add New Table
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<Add />}
+                        sx={{ml: 2}}
+                        onClick={handleOpenAddTable}>
+                        Add Table
                     </Button>
-                </div>
-                <List>
-                    {tables.map(table => (
-                        <ListItem
-                            key={table.id}
-                            button
-                            selected={selectedTable?.id === table.id}
-                            onClick={() => handleSelectTable(table)}
-                            secondaryAction={
-                                <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteTable(table.id)}>
-                                    <Delete />
-                                </IconButton>
-                            }>
-                            <ListItemText primary={table.name} />
-                        </ListItem>
-                    ))}
-                </List>
-
-                {/* Dialog for creating a new table */}
-                <Dialog open={openDialog} onClose={handleCloseDialog}>
-                    <DialogTitle>Create New Table</DialogTitle>
-                    <DialogContent>
-                        <TextField
-                            autoFocus
-                            margin="dense"
-                            label="Table Name"
-                            fullWidth
-                            variant="outlined"
-                            value={newTableName}
-                            onChange={e => setNewTableName(e.target.value)}
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseDialog} color="secondary">
-                            Cancel
-                        </Button>
-                        <Button onClick={handleCreateTable} color="primary" variant="contained">
-                            Create
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-
-                {/* Display selected table's columns */}
-                {selectedTable && (
-                    <div style={{marginTop: '2rem'}}>
-                        <Typography variant="h5">{selectedTable.name} Columns</Typography>
-                        {/* Fetch columns from schema */}
-                        {schema[selectedTable.name]?.columns.map(col => (
-                            <Typography key={col.id}>
-                                - {col.name} ({col.data_type}) {col.constraints ? `| ${col.constraints}` : ''}
-                            </Typography>
+                </Box>
+                <Paper elevation={3} sx={{maxHeight: '60vh', overflow: 'auto'}}>
+                    <List>
+                        {tables.map(table => (
+                            <ListItem
+                                key={table.id}
+                                secondaryAction={
+                                    <>
+                                        <IconButton
+                                            edge="end"
+                                            aria-label="view-columns"
+                                            onClick={() => handleSelectTable(table)}>
+                                            <Visibility />
+                                        </IconButton>
+                                        <IconButton
+                                            edge="end"
+                                            aria-label="add-column"
+                                            onClick={() => handleOpenAddColumn(table)}>
+                                            <Add />
+                                        </IconButton>
+                                        <IconButton
+                                            edge="end"
+                                            aria-label="delete-table"
+                                            onClick={() => handleDeleteTable(table)}>
+                                            <Delete />
+                                        </IconButton>
+                                    </>
+                                }
+                                onClick={() => handleSelectTable(table)}>
+                                <ListItemText primary={table.name} />
+                            </ListItem>
                         ))}
-                        {/* Optionally, implement adding/removing columns */}
-                    </div>
-                )}
-            </div>
-            <div style={{flex: 1, paddingLeft: '1rem'}}>
+                    </List>
+                </Paper>
+
+                {/* AddTableDialog Component */}
+                <AddTableDialog open={openAddTable} handleClose={handleCloseAddTable} onTableAdded={handleTableAdded} />
+
+                {/* AddColumnDialog Component */}
                 {selectedTable && (
-                    <ObjectSummary tableName={selectedTable.name} recordId={0} />
-                    // recordId can be dynamic based on user selection
+                    <AddColumnDialog
+                        open={openAddColumn}
+                        handleClose={handleCloseAddColumn}
+                        tableName={selectedTable.name}
+                        tableId={selectedTable.id}
+                        onColumnAdded={handleColumnAdded}
+                    />
                 )}
-            </div>
-        </div>
+
+                {/* ConfirmDeleteDialog Component */}
+                {tableToDelete && (
+                    <ConfirmDeleteDialog
+                        open={confirmDelete}
+                        handleClose={() => setConfirmDelete(false)}
+                        handleConfirm={confirmDeleteTable}
+                        itemName={tableToDelete.name}
+                        itemType="table"
+                    />
+                )}
+            </Grid>
+            <Grid item xs={12} md={8}>
+                {selectedTable ? (
+                    <ColumnListModal
+                        open={openColumnList}
+                        handleClose={() => setOpenColumnList(false)}
+                        tableName={selectedTable.name}
+                        tableId={selectedTable.id}
+                    />
+                ) : (
+                    <Typography variant="h6">Select a table to view its columns.</Typography>
+                )}
+            </Grid>
+        </Grid>
     );
 };
 

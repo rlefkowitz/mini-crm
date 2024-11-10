@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
-import ReactFlow, {Elements, Background, Controls, MiniMap} from 'react-flow-renderer';
-import axios from 'axios';
-import {TableSchema, RelationshipRead} from '../types';
+import ReactFlow, {Node, Edge, Background, Controls, MiniMap, MarkerType, isNode, isEdge} from 'react-flow-renderer';
+import axios from '../utils/axiosConfig';
+import {RelationshipRead} from '../types';
 import useSchema from '../hooks/useSchema';
 import {Typography} from '@mui/material';
 import dagre from 'dagre';
@@ -12,13 +12,13 @@ dagreGraph.setDefaultEdgeLabel(() => ({}));
 const nodeWidth = 172;
 const nodeHeight = 36;
 
-const getLayoutedElements = (elements: Elements, direction = 'LR') => {
+const getLayoutedElements = (elements: (Node | Edge)[], direction = 'LR') => {
     dagreGraph.setGraph({rankdir: direction});
 
     elements.forEach(el => {
-        if (el.type === 'default') {
+        if (isNode(el)) {
             dagreGraph.setNode(el.id, {width: nodeWidth, height: nodeHeight});
-        } else {
+        } else if (isEdge(el)) {
             dagreGraph.setEdge(el.source, el.target);
         }
     });
@@ -26,7 +26,7 @@ const getLayoutedElements = (elements: Elements, direction = 'LR') => {
     dagre.layout(dagreGraph);
 
     return elements.map(el => {
-        if (el.type === 'default') {
+        if (isNode(el)) {
             const nodeWithPosition = dagreGraph.node(el.id);
             el.position = {
                 x: nodeWithPosition.x - nodeWidth / 2,
@@ -40,7 +40,8 @@ const getLayoutedElements = (elements: Elements, direction = 'LR') => {
 const NodeView: React.FC = () => {
     const {schema, loading} = useSchema();
     const [relationships, setRelationships] = useState<RelationshipRead[]>([]);
-    const [elements, setElements] = useState<Elements>([]);
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [edges, setEdges] = useState<Edge[]>([]);
 
     const fetchRelationships = async () => {
         try {
@@ -64,8 +65,8 @@ const NodeView: React.FC = () => {
     }, [relationships, schema, loading]);
 
     const buildGraph = () => {
-        const nodes: Elements = [];
-        const edges: Elements = [];
+        const nodes: Node[] = [];
+        const edges: Edge[] = [];
 
         // Create nodes for each table
         Object.keys(schema).forEach(tableName => {
@@ -85,12 +86,20 @@ const NodeView: React.FC = () => {
                 target: rel.to_table,
                 animated: true,
                 label: rel.name,
-                arrowHeadType: 'arrowclosed',
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                },
             });
         });
 
-        const layoutedElements = getLayoutedElements([...nodes, ...edges], 'LR');
-        setElements(layoutedElements);
+        const combinedElements = [...nodes, ...edges];
+        const layoutedElements = getLayoutedElements(combinedElements, 'LR');
+
+        const layoutedNodes = layoutedElements.filter(el => el.type === 'default') as Node[];
+        const layoutedEdges = layoutedElements.filter(el => isEdge(el)) as Edge[];
+
+        setNodes(layoutedNodes);
+        setEdges(layoutedEdges);
     };
 
     if (loading) return <Typography>Loading schema...</Typography>;
@@ -101,7 +110,12 @@ const NodeView: React.FC = () => {
                 Database Relationships Visualization
             </Typography>
             <div style={{height: '800px', border: '1px solid #ddd', marginTop: '1rem'}}>
-                <ReactFlow elements={elements} nodesDraggable={true} nodesConnectable={false} elementsSelectable={true}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    nodesDraggable={true}
+                    nodesConnectable={false}
+                    elementsSelectable={true}>
                     <Background color="#aaa" gap={16} />
                     <Controls />
                     <MiniMap />

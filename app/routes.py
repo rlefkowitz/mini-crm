@@ -10,7 +10,6 @@ from sqlmodel import Session, text
 
 from app.databases.database import get_session
 from app.routers import router
-from app.websocket import router as websocket_router
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +90,3 @@ async def get_openapi(username: str = Depends(get_current_username)):
     return openapi.utils.get_openapi(
         title="Common App API Spec", version="0.1.0", routes=router.routes
     )
-
-
-router.include_router(websocket_router)

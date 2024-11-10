@@ -2,13 +2,14 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlmodel import select, text
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlmodel import Session, select, text
 
 from app.databases.database import get_session
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Column, Table
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.schema import ColumnRead
 from app.websocket import manager
 
@@ -17,7 +18,11 @@ router = APIRouter()
 
 @router.post("/records/{table_name}/")
 def create_record(
-    table_name: str, record: dict, session: Session = Depends(get_session)
+    table_name: str,
+    record: dict,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     table = session.exec(select(Table).where(Table.name == table_name)).first()
     if not table:
@@ -40,23 +45,26 @@ def create_record(
         session.rollback()
         raise HTTPException(status_code=400, detail="Record creation failed") from e
     # Broadcast data update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "data_update",
-                    "action": "create",
-                    "table": table_name,
-                    "id": new_id,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "data_update",
+                "action": "create",
+                "table": table_name,
+                "id": new_id,
+            }
+        ),
     )
     return {"id": new_id}
 
 
 @router.get("/records/{table_name}/", response_model=list[Any])
-def read_records(table_name: str, session: Session = Depends(get_session)):
+def read_records(
+    table_name: str,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     table = session.exec(select(Table).where(Table.name == table_name)).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -74,7 +82,9 @@ def update_record(
     table_name: str,
     record_id: int,
     record: dict,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     table = session.exec(select(Table).where(Table.name == table_name)).first()
     if not table:
@@ -96,24 +106,27 @@ def update_record(
         session.rollback()
         raise HTTPException(status_code=400, detail="Record update failed") from e
     # Broadcast data update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "data_update",
-                    "action": "update",
-                    "table": table_name,
-                    "id": record_id,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "data_update",
+                "action": "update",
+                "table": table_name,
+                "id": record_id,
+            }
+        ),
     )
     return {"ok": True}
 
 
 @router.delete("/records/{table_name}/{record_id}/")
 def delete_record(
-    table_name: str, record_id: int, session: Session = Depends(get_session)
+    table_name: str,
+    record_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     table = session.exec(select(Table).where(Table.name == table_name)).first()
     if not table:
@@ -126,16 +139,15 @@ def delete_record(
         session.rollback()
         raise HTTPException(status_code=400, detail="Record deletion failed") from e
     # Broadcast data update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "data_update",
-                    "action": "delete",
-                    "table": table_name,
-                    "id": record_id,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "data_update",
+                "action": "delete",
+                "table": table_name,
+                "id": record_id,
+            }
+        ),
     )
     return {"ok": True}

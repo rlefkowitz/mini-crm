@@ -8,6 +8,7 @@ class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     email: str = Field(index=True, unique=True)
+    hashed_password: str = Field(..., nullable=False)
     company_id: int | None = Field(default=None, foreign_key="company.id")
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

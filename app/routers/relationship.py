@@ -1,13 +1,14 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlmodel import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlmodel import Session, select
 
 from app.databases.database import get_session
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Table
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.relationship import (
     RelationshipAttributeRead,
     RelationshipCreate,
@@ -27,7 +28,10 @@ router = APIRouter()
 
 @router.post("/relationships/", response_model=RelationshipRead)
 def create_relationship(
-    relationship: RelationshipCreate, session: Session = Depends(get_session)
+    relationship: RelationshipCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     # Fetch from_table and to_table
     from_table = session.exec(
@@ -75,16 +79,15 @@ def create_relationship(
         ) from e
 
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "create_relationship",
-                    "relationship": relationship.name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "create_relationship",
+                "relationship": relationship.name,
+            }
+        ),
     )
 
     # Prepare response
@@ -105,7 +108,9 @@ def create_relationship(
 
 
 @router.get("/relationships/", response_model=list[RelationshipRead])
-def read_relationships(session: Session = Depends(get_session)):
+def read_relationships(
+    session: Session = Depends(get_session), user: User = Depends(get_current_user)
+):
     relationships = session.exec(select(RelationshipModel)).all()
     response = []
     for rel in relationships:
@@ -132,7 +137,12 @@ def read_relationships(session: Session = Depends(get_session)):
 
 
 @router.delete("/relationships/{relationship_id}")
-def delete_relationship(relationship_id: int, session: Session = Depends(get_session)):
+def delete_relationship(
+    relationship_id: int,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     relationship = session.get(RelationshipModel, relationship_id)
     if not relationship:
         raise HTTPException(status_code=404, detail="Relationship not found")
@@ -149,16 +159,15 @@ def delete_relationship(relationship_id: int, session: Session = Depends(get_ses
         ) from e
 
     # Broadcast schema update
-    asyncio.create_task(
-        manager.broadcast(
-            json.dumps(
-                {
-                    "type": "schema_update",
-                    "action": "delete_relationship",
-                    "relationship": relationship_name,
-                }
-            )
-        )
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "delete_relationship",
+                "relationship": relationship_name,
+            }
+        ),
     )
 
     return {"ok": True}

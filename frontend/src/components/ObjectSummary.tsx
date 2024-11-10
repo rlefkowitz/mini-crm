@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import axios from 'axios';
+import axios from '../utils/axiosConfig';
 import {List, ListItem, ListItemText, Typography, Divider, Paper} from '@mui/material';
 import {RelationshipRead, Record} from '../types';
 
