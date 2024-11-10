@@ -1,9 +1,11 @@
 from sqlalchemy import text
 from sqlmodel import Session
 
-from app.databases.database import engine
+from app.databases.database import get_engine
 from app.models.relationship import RelationshipAttribute, RelationshipModel
 from app.models.schema import Table
+
+engine = get_engine()
 
 
 def create_table(table_name: str):

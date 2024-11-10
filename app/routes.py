@@ -7,10 +7,10 @@ from fastapi import Depends, HTTPException, openapi, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlmodel import Session, text
-from websocket import router as websocket_router
 
 from app.databases.database import get_session
 from app.routers import router
+from app.websocket import router as websocket_router
 
 log = logging.getLogger(__name__)
 

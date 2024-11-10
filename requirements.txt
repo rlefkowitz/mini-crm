@@ -2,13 +2,16 @@ annotated-types==0.7.0
 anyio==4.6.2.post1
 click==8.1.7
 debugpy==1.8.8
+dnspython==2.7.0
+email-validator==2.2.0
 fastapi==0.115.4
 h11==0.14.0
 httptools==0.6.4
 idna==3.10
+itsdangerous==2.2.0
 passlib==1.7.4
 psycopg2-binary==2.9.10
-pydantic==2.9.2
+pydantic[email]==2.9.2
 pydantic-core==2.23.4
 pyfiglet==1.0.2
 python-dotenv==1.0.1
@@ -22,3 +25,6 @@ uvicorn[standard]==0.32.0
 uvloop==0.21.0
 watchfiles==0.24.0
 websockets==14.0
+
+# The following packages are considered to be unsafe in a requirements file:
+setuptools==75.3.0

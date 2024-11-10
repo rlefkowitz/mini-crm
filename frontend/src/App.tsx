@@ -1,35 +1,49 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import {BrowserRouter as Router, Routes, Route, Link, Navigate} from 'react-router-dom';
+import {AppBar, Toolbar, Typography, Button} from '@mui/material';
+import SchemaView from './views/SchemaView';
+import DataView from './views/DataView';
+import RelationshipView from './views/RelationshipView';
+import NodeView from './views/NodeView';
+import {ThemeProvider} from '@mui/material/styles';
+import theme from './theme';
 
-function App() {
-  const [count, setCount] = useState(0)
+const App: React.FC = () => {
+    return (
+        <ThemeProvider theme={theme}>
+            <Router>
+                <AppBar position="static">
+                    <Toolbar>
+                        <Typography variant="h6" style={{flexGrow: 1}}>
+                            Mini CRM
+                        </Typography>
+                        <Button color="inherit" component={Link} to="/schema">
+                            Schema
+                        </Button>
+                        <Button color="inherit" component={Link} to="/data">
+                            Data
+                        </Button>
+                        <Button color="inherit" component={Link} to="/relationships">
+                            Relationships
+                        </Button>
+                        <Button color="inherit" component={Link} to="/node-view">
+                            Node View
+                        </Button>
+                    </Toolbar>
+                </AppBar>
+                <div style={{padding: '2rem'}}>
+                    <Routes>
+                        <Route path="/" element={<Navigate replace to="/schema" />} />
+                        <Route path="/schema" element={<SchemaView />} />
+                        <Route path="/data" element={<DataView />} />
+                        <Route path="/relationships" element={<RelationshipView />} />
+                        <Route path="/node-view" element={<NodeView />} />
+                        <Route path="*" element={<Typography>404 Not Found</Typography>} />
+                    </Routes>
+                </div>
+            </Router>
+        </ThemeProvider>
+    );
+};
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
-
-export default App
+export default App;

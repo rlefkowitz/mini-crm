@@ -5,7 +5,7 @@ services:
       - crm-network
     build:
       context: ./
-      dockerfile: ./docker/api/Dockerfile.dev
+      dockerfile: ./Dockerfile
     ports:
       - "8000:8000"
     volumes:
