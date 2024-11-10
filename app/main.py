@@ -86,7 +86,6 @@ def handle_disconnect_db():
 try:
     init_loggers()
 
-    # API Docs are unprotected only when running locally
     if envs.get_env() in envs.HOSTED_ENVS:
         app = FastAPI(
             lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
