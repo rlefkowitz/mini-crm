@@ -15,7 +15,7 @@ class ColumnRead(BaseModel):
     constraints: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TableCreate(BaseModel):
@@ -27,4 +27,4 @@ class TableRead(BaseModel):
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True

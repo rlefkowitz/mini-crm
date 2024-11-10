@@ -14,7 +14,7 @@ class RelationshipAttributeRead(BaseModel):
     constraints: str | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class RelationshipCreate(BaseModel):
@@ -32,4 +32,4 @@ class RelationshipRead(BaseModel):
     attributes: list[RelationshipAttributeRead] | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
