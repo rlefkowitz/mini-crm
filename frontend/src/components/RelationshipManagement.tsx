@@ -98,6 +98,12 @@ const RelationshipManagement: React.FC = () => {
             return;
         }
 
+        // Prevent creating a relationship where from_table and to_table are the same
+        if (newRelationship.from_table === newRelationship.to_table) {
+            setError('From Table and To Table cannot be the same.');
+            return;
+        }
+
         createRelationshipMutation.mutate(newRelationship);
     };
 
@@ -174,7 +180,10 @@ const RelationshipManagement: React.FC = () => {
                                         onClick={() => handleDeleteRelationship(rel.id)}>
                                         <RemoveCircle color="secondary" />
                                     </IconButton>
-                                }>
+                                }
+                                onClick={() => {
+                                    /* Optional: Open edit dialog */
+                                }}>
                                 <ListItemText
                                     primary={rel.name}
                                     secondary={`${rel.from_table} ↔ ${rel.to_table} (${rel.relationship_type.replace('_', ' ')})`}
@@ -251,6 +260,7 @@ const RelationshipManagement: React.FC = () => {
                                     }>
                                     <MenuItem value="one_to_one">One-to-One</MenuItem>
                                     <MenuItem value="one_to_many">One-to-Many</MenuItem>
+                                    <MenuItem value="many_to_many">Many-to-Many</MenuItem>
                                 </Select>
                             </FormControl>
                         </Grid>

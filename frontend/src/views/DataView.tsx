@@ -25,7 +25,7 @@ import {TableRead, Record} from '../types';
 import ObjectSummary from '../components/ObjectSummary';
 
 const DataView: React.FC = () => {
-    const {schema, loading} = useSchema();
+    const {schema, isLoading: loading} = useSchema();
     const [tables, setTables] = useState<TableRead[]>([]);
     const [selectedTable, setSelectedTable] = useState<string>('');
     const [records, setRecords] = useState<Record[]>([]);
@@ -118,7 +118,7 @@ const DataView: React.FC = () => {
                             <TableHead>
                                 <TableRow>
                                     <TableCell>ID</TableCell>
-                                    {schema[selectedTable]?.columns.map(col => (
+                                    {schema?.[selectedTable]?.columns.map(col => (
                                         <TableCell key={col.id}>{col.name}</TableCell>
                                     ))}
                                     <TableCell>Actions</TableCell>
@@ -128,7 +128,7 @@ const DataView: React.FC = () => {
                                 {records.map(record => (
                                     <TableRow key={record.id}>
                                         <TableCell>{record.id}</TableCell>
-                                        {schema[selectedTable]?.columns.map(col => (
+                                        {schema?.[selectedTable]?.columns.map(col => (
                                             <TableCell key={col.id}>{record[col.name]}</TableCell>
                                         ))}
                                         <TableCell>
@@ -149,7 +149,9 @@ const DataView: React.FC = () => {
                                 ))}
                                 {records.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={schema[selectedTable]?.columns.length + 2} align="center">
+                                        <TableCell
+                                            colSpan={(schema?.[selectedTable]?.columns.length || 0) + 2}
+                                            align="center">
                                             No records found.
                                         </TableCell>
                                     </TableRow>

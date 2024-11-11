@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -6,7 +8,6 @@ from app.models.enum import EnumModel, EnumValueModel
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.enum import EnumCreate, EnumRead, EnumValueCreate, EnumValueRead
-from app.utils.migration import add_enum, add_enum_value, remove_enum, remove_enum_value
 from app.websocket import manager
 
 router = APIRouter()
@@ -19,6 +20,7 @@ def create_enum(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    # Check if enum with the same name already exists
     existing_enum = session.exec(
         select(EnumModel).where(EnumModel.name == enum.name)
     ).first()
@@ -27,140 +29,143 @@ def create_enum(
             status_code=400, detail="Enum with this name already exists"
         )
 
+    # Create EnumModel
     db_enum = EnumModel(name=enum.name)
     session.add(db_enum)
     try:
         session.commit()
         session.refresh(db_enum)
-        # Add enum values
-        for value in enum.values:
-            db_value = EnumValueModel(enum_id=db_enum.id, value=value.value)
-            session.add(db_value)
-        session.commit()
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Enum creation failed") from e
 
+    # Create EnumValueModels
+    if enum.values:
+        for value in enum.values:
+            db_enum_value = EnumValueModel(enum_id=db_enum.id, value=value.value)
+            session.add(db_enum_value)
+        try:
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(
+                status_code=400, detail="Enum values creation failed"
+            ) from e
+
     # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
-        {
-            "type": "schema_update",
-            "action": "create_enum",
-            "enum": db_enum.name,
-            "values": [val.value for val in db_enum.values],  # Ensure `values` exists
-        },
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "create_enum",
+                "enum": db_enum.name,
+                "values": [v.value for v in db_enum.values],
+            }
+        ),
     )
 
     return EnumRead(
         id=db_enum.id,
         name=db_enum.name,
-        values=[EnumValueRead.model_validate(val) for val in db_enum.values],
+        values=[EnumValueRead.model_validate(v) for v in db_enum.values],
     )
 
 
 @router.get("/enums/", response_model=list[EnumRead])
 def read_enums(
-    session: Session = Depends(get_session), user: User = Depends(get_current_user)
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ):
     enums = session.exec(select(EnumModel)).all()
-    response = []
-    for enum in enums:
-        values = session.exec(
-            select(EnumValueModel).where(EnumValueModel.enum_id == enum.id)
-        ).all()
-        response.append(
-            EnumRead(
-                id=enum.id,
-                name=enum.name,
-                values=[EnumValueRead.model_validate(value) for value in values],
-            )
+    return [
+        EnumRead(
+            id=enum.id,
+            name=enum.name,
+            values=[EnumValueRead.model_validate(v) for v in enum.values],
         )
-    return response
+        for enum in enums
+    ]
 
 
-@router.post("/enums/{enum_id}/values/", response_model=EnumValueRead)
-def add_enum_value_endpoint(
+@router.get("/enums/{enum_id}", response_model=EnumRead)
+def read_enum(
     enum_id: int,
-    value: EnumValueCreate,
-    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     enum = session.get(EnumModel, enum_id)
     if not enum:
         raise HTTPException(status_code=404, detail="Enum not found")
-
-    existing_value = session.exec(
-        select(EnumValueModel).where(
-            EnumValueModel.enum_id == enum_id, EnumValueModel.value == value.value
-        )
-    ).first()
-    if existing_value:
-        raise HTTPException(status_code=400, detail="Enum value already exists")
-
-    db_value = EnumValueModel(enum_id=enum_id, value=value.value)
-    session.add(db_value)
-    try:
-        session.commit()
-        session.refresh(db_value)
-        add_enum_value(enum, db_value)
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(status_code=400, detail="Failed to add enum value") from e
-
-    # Broadcast schema update
-    background_tasks.add_task(
-        manager.broadcast,
-        {
-            "type": "schema_update",
-            "action": "add_enum_value",
-            "enum": enum.name,
-            "value": value.value,
-        },
+    return EnumRead(
+        id=enum.id,
+        name=enum.name,
+        values=[EnumValueRead.model_validate(v) for v in enum.values],
     )
 
-    return EnumValueRead.model_validate(db_value)
 
-
-@router.delete("/enums/{enum_id}/values/{value_id}")
-def remove_enum_value_endpoint(
+@router.put("/enums/{enum_id}/", response_model=EnumRead)
+def update_enum(
     enum_id: int,
-    value_id: int,
+    enum: EnumCreate,
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    value = session.get(EnumValueModel, value_id)
-    if not value or value.enum_id != enum_id:
-        raise HTTPException(status_code=404, detail="Enum value not found")
-
-    enum = session.get(EnumModel, enum_id)
-    if not enum:
+    db_enum = session.get(EnumModel, enum_id)
+    if not db_enum:
         raise HTTPException(status_code=404, detail="Enum not found")
 
+    # Update enum name
+    db_enum.name = enum.name
+
+    session.add(db_enum)
     try:
-        remove_enum_value(enum, value, session)
-        session.delete(value)
+        session.commit()
+        session.refresh(db_enum)
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Enum update failed") from e
+
+    # Update Enum Values
+    existing_values = {v.value for v in db_enum.values}
+    new_values = {v.value for v in enum.values}
+
+    # Add new values
+    for value in enum.values:
+        if value.value not in existing_values:
+            db_enum_value = EnumValueModel(enum_id=db_enum.id, value=value.value)
+            session.add(db_enum_value)
+
+    # Remove values not present in the update
+    for value in db_enum.values:
+        if value.value not in new_values:
+            session.delete(value)
+
+    try:
         session.commit()
     except Exception as e:
         session.rollback()
-        raise HTTPException(
-            status_code=400, detail="Failed to remove enum value"
-        ) from e
+        raise HTTPException(status_code=400, detail="Enum values update failed") from e
 
     # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
-        {
-            "type": "schema_update",
-            "action": "remove_enum_value",
-            "enum": enum.name,
-            "value": value.value,
-        },
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "update_enum",
+                "enum": db_enum.name,
+                "values": [v.value for v in db_enum.values],
+            }
+        ),
     )
 
-    return {"ok": True}
+    return EnumRead(
+        id=db_enum.id,
+        name=db_enum.name,
+        values=[EnumValueRead.model_validate(v) for v in db_enum.values],
+    )
 
 
 @router.delete("/enums/{enum_id}")
@@ -170,26 +175,28 @@ def delete_enum(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    enum = session.get(EnumModel, enum_id)
-    if not enum:
+    db_enum = session.get(EnumModel, enum_id)
+    if not db_enum:
         raise HTTPException(status_code=404, detail="Enum not found")
 
+    enum_name = db_enum.name
+    session.delete(db_enum)
     try:
-        remove_enum(enum, session)
-        session.delete(enum)
         session.commit()
     except Exception as e:
         session.rollback()
-        raise HTTPException(status_code=400, detail="Failed to delete enum") from e
+        raise HTTPException(status_code=400, detail="Enum deletion failed") from e
 
     # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
-        {
-            "type": "schema_update",
-            "action": "delete_enum",
-            "enum": enum.name,
-        },
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "delete_enum",
+                "enum": enum_name,
+            }
+        ),
     )
 
     return {"ok": True}

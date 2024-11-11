@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -14,7 +15,9 @@ from app.schemas.auth import Token, UserLogin, UserRegister
 router = APIRouter()
 
 # Secret key generation (should be stored securely in environment variables)
-SECRET_KEY = "your_secret_key_here"  # Replace with a strong secret key in production
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY", "your_secret_key_here"
+)  # Replace with a strong secret key in production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

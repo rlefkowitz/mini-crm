@@ -6,6 +6,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .enum import EnumModel
+    from .record import Record
     from .relationship import RelationshipModel
 
 
@@ -20,6 +21,7 @@ class Column(SQLModel, table=True):
     enum_id: int | None = Field(default=None, foreign_key="enummodel.id")
     required: bool = Field(default=False)
     unique: bool = Field(default=False)
+    searchable: bool = Field(default=False)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -38,9 +40,11 @@ class Table(SQLModel, table=True):
 
     relationships_from: list["RelationshipModel"] = Relationship(
         back_populates="from_table",
-        sa_relationship_kwargs=dict(foreign_keys="[RelationshipModel.from_table_id]"),
+        sa_relationship_kwargs={"foreign_keys": "[RelationshipModel.from_table_id]"},
     )
     relationships_to: list["RelationshipModel"] = Relationship(
         back_populates="to_table",
-        sa_relationship_kwargs=dict(foreign_keys="[RelationshipModel.to_table_id]"),
+        sa_relationship_kwargs={"foreign_keys": "[RelationshipModel.to_table_id]"},
     )
+
+    records: list["Record"] = Relationship(back_populates="table")

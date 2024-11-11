@@ -37,15 +37,28 @@ const getLayoutedElements = (elements: (Node | Edge)[], direction = 'LR') => {
     });
 };
 
+const getEdgeStyle = (relationshipType: string) => {
+    switch (relationshipType) {
+        case 'one_to_one':
+            return {stroke: '#f6ab6c'};
+        case 'one_to_many':
+            return {stroke: '#8884d8'};
+        case 'many_to_many':
+            return {stroke: '#82ca9d', strokeDasharray: '5,5'};
+        default:
+            return {};
+    }
+};
+
 const NodeView: React.FC = () => {
-    const {schema, loading} = useSchema();
+    const {schema, isLoading: loading} = useSchema();
     const [relationships, setRelationships] = useState<RelationshipRead[]>([]);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
 
     const fetchRelationships = async () => {
         try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/relationships/`);
+            const response = await axios.get(`/relationships/`);
             setRelationships(response.data);
         } catch (error) {
             console.error('Error fetching relationships:', error);
@@ -69,7 +82,7 @@ const NodeView: React.FC = () => {
         const edges: Edge[] = [];
 
         // Create nodes for each table
-        Object.keys(schema).forEach(tableName => {
+        Object.keys(schema || {}).forEach(tableName => {
             nodes.push({
                 id: tableName,
                 data: {label: tableName},
@@ -84,11 +97,12 @@ const NodeView: React.FC = () => {
                 id: `e${rel.from_table}-${rel.to_table}-${rel.id}`,
                 source: rel.from_table,
                 target: rel.to_table,
-                animated: true,
+                animated: rel.relationship_type === 'many_to_many', // Animate only many_to_many for visibility
                 label: rel.name,
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
                 },
+                style: getEdgeStyle(rel.relationship_type),
             });
         });
 
@@ -118,7 +132,16 @@ const NodeView: React.FC = () => {
                     elementsSelectable={true}>
                     <Background color="#aaa" gap={16} />
                     <Controls />
-                    <MiniMap />
+                    <MiniMap
+                        nodeColor={node => {
+                            switch (node.type) {
+                                case 'default':
+                                    return '#00bfff';
+                                default:
+                                    return '#eee';
+                            }
+                        }}
+                    />
                 </ReactFlow>
             </div>
         </div>

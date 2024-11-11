@@ -99,7 +99,7 @@ export interface TableRead {
 /**
  * Supported relationship types between tables.
  */
-export type RelationshipType = 'one_to_one' | 'one_to_many';
+export type RelationshipType = 'one_to_one' | 'one_to_many' | 'many_to_many';
 
 /**
  * Payload for creating a relationship attribute.
@@ -151,7 +151,7 @@ export interface RelationshipRead {
  */
 export interface Record {
     id: number;
-    [key: string]: any; // Dynamic fields corresponding to table columns
+    [key: string]: any; // Dynamic fields corresponding to table columns and relationships
 }
 
 // =======================

@@ -16,8 +16,12 @@ services:
       DB_USER: "crmadmin"
       DB_PASS: "password"
       DB_NAME: "mini_crm_db"
+      ELASTIC_HOST: "elasticsearch"
+      ELASTIC_PORT: "9200"
     depends_on:
       db:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
   db:
     image: postgres:latest
@@ -51,9 +55,38 @@ services:
       db:
         condition: service_healthy
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+    container_name: elasticsearch
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false  # Disable security for development (not recommended for production)
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - crm-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
 networks:
   crm-network:
     name: crm-network
 
 volumes:
-  static_volume:
+  elasticsearch_data:

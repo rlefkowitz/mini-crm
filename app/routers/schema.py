@@ -9,19 +9,11 @@ from app.models.schema import Column, Table
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.schema import ColumnCreate, ColumnRead, TableCreate, TableRead
-from app.utils.migration import (
-    add_column,
-    create_table,
-    drop_column,
-    drop_table,
-    update_column,
-)
 from app.websocket import manager
 
 router = APIRouter()
 
 
-# Table CRUD
 @router.post("/tables/", response_model=TableRead)
 def create_table_endpoint(
     table: TableCreate,
@@ -29,12 +21,17 @@ def create_table_endpoint(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    existing_table = session.exec(select(Table).where(Table.name == table.name)).first()
+    if existing_table:
+        raise HTTPException(
+            status_code=400, detail="Table with this name already exists"
+        )
     db_table = Table(name=table.name)
     session.add(db_table)
     try:
         session.commit()
         session.refresh(db_table)
-        create_table(db_table.name)  # Apply migration
+        # Alembic handles migrations, so no need to call create_table here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Table creation failed") from e
@@ -74,7 +71,7 @@ def delete_table_endpoint(
     session.delete(table)
     try:
         session.commit()
-        drop_table(table_name)  # Apply migration
+        # Alembic handles migrations, so no need to call drop_table here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Table deletion failed") from e
@@ -104,6 +101,12 @@ def create_column_endpoint(
     table = session.get(Table, table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    # Check if column already exists
+    existing_column = session.exec(
+        select(Column).where(Column.table_id == table_id, Column.name == column.name)
+    ).first()
+    if existing_column:
+        raise HTTPException(status_code=400, detail="Column already exists")
     # Build constraints string based on 'required' and 'unique'
     constraints = []
     if column.required:
@@ -122,14 +125,13 @@ def create_column_endpoint(
         required=column.required,
         unique=column.unique,
         enum_id=column.enum_id,
+        searchable=column.searchable,  # Handle searchable flag
     )
     session.add(db_column)
     try:
         session.commit()
         session.refresh(db_column)
-        add_column(
-            table.name, db_column.name, db_column.data_type, db_column.constraints
-        )  # Apply migration
+        # Alembic handles migrations, so no need to call add_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column creation failed") from e
@@ -142,6 +144,7 @@ def create_column_endpoint(
                 "action": "create_column",
                 "table": table.name,
                 "column": db_column.name,
+                "searchable": db_column.searchable,
             }
         ),
     )
@@ -176,7 +179,7 @@ def delete_column_endpoint(
     session.delete(column)
     try:
         session.commit()
-        drop_column(table.name, column_name)
+        # Alembic handles migrations, so no need to call drop_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column deletion failed") from e
@@ -223,12 +226,13 @@ def update_column_endpoint(
     db_column.required = column.required
     db_column.unique = column.unique
     db_column.enum_id = column.enum_id
+    db_column.searchable = column.searchable  # Update searchable flag
 
     session.add(db_column)
     try:
         session.commit()
         session.refresh(db_column)
-        update_column(db_column, session)  # Apply migration
+        # Alembic handles migrations, so no need to call update_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column update failed") from e
@@ -241,6 +245,7 @@ def update_column_endpoint(
                 "action": "update_column",
                 "table": db_column.table.name,
                 "column": db_column.name,
+                "searchable": db_column.searchable,
             }
         ),
     )
@@ -267,6 +272,7 @@ def get_current_schema(
                     "required": column.required,
                     "unique": column.unique,
                     "enum_id": column.enum_id,
+                    "searchable": column.searchable,
                 }
                 for column in columns
             ],

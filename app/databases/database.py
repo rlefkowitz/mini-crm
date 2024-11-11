@@ -2,17 +2,22 @@ import logging
 from os import environ
 from sys import stdout
 from time import sleep
+from typing import Generator
 
 from alembic import command
 from alembic.config import Config
 from alembic.runtime import migration
 from alembic.script import ScriptDirectory
+from elasticsearch import Elasticsearch
 from sqlalchemy import Engine
 from sqlmodel import Session, SQLModel, create_engine
 
 from utilities import envs
 
 log = logging.getLogger(__name__)
+
+# Initialize Elasticsearch client
+es = Elasticsearch([environ.get("ELASTICSEARCH_URL", "http://localhost:9200")])
 
 
 def _get_engine(env: str):
@@ -98,7 +103,7 @@ def create_session() -> Session:
     return Session(bind=get_engine())
 
 
-def get_session():
+def get_session() -> Generator[Session, None, None]:
     sess = create_session()
     try:
         with sess as session:
