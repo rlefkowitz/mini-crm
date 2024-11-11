@@ -1,6 +1,3 @@
-import asyncio
-import json
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -14,13 +11,7 @@ from app.schemas.relationship import (
     RelationshipCreate,
     RelationshipRead,
 )
-from app.utils.migration import (
-    add_relationship_attribute,
-    create_relationship_table,
-    drop_relationship_attribute,
-    drop_relationship_table,
-    map_data_type,
-)
+from app.utils.migration import create_relationship_table, drop_relationship_table
 from app.websocket import manager
 
 router = APIRouter()
@@ -33,6 +24,15 @@ def create_relationship(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    # Check if relationship name already exists
+    existing_relationship = session.exec(
+        select(RelationshipModel).where(RelationshipModel.name == relationship.name)
+    ).first()
+    if existing_relationship:
+        raise HTTPException(
+            status_code=400, detail="Relationship with this name already exists"
+        )
+
     # Fetch from_table and to_table
     from_table = session.exec(
         select(Table).where(Table.name == relationship.from_table)
@@ -42,36 +42,33 @@ def create_relationship(
     ).first()
 
     if not from_table or not to_table:
-        raise HTTPException(status_code=404, detail="One or both tables not found")
+        raise HTTPException(status_code=404, detail="From or To table not found")
 
-    # Create RelationshipModel instance
     db_relationship = RelationshipModel(
         name=relationship.name,
         from_table_id=from_table.id,
         to_table_id=to_table.id,
-        attributes=json.dumps([]),  # Initialize with empty list
+        relationship_type=relationship.relationship_type,
     )
     session.add(db_relationship)
     try:
         session.commit()
         session.refresh(db_relationship)
-        # Apply migration to create the junction table
-        create_relationship_table(db_relationship, session)
 
-        # Handle additional attributes
+        # Add attributes if any
         if relationship.attributes:
             for attr in relationship.attributes:
-                db_attribute = RelationshipAttribute(
+                db_attr = RelationshipAttribute(
                     relationship_id=db_relationship.id,
                     name=attr.name,
                     data_type=attr.data_type,
                     constraints=attr.constraints,
                 )
-                session.add(db_attribute)
-                add_relationship_attribute(
-                    db_relationship, db_attribute
-                )  # Apply migration
+                session.add(db_attr)
             session.commit()
+
+        # Create the relationship table in the database
+        create_relationship_table(db_relationship, session)
     except Exception as e:
         session.rollback()
         raise HTTPException(
@@ -81,59 +78,35 @@ def create_relationship(
     # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
-        json.dumps(
-            {
-                "type": "schema_update",
-                "action": "create_relationship",
-                "relationship": relationship.name,
-            }
-        ),
+        {
+            "type": "schema_update",
+            "action": "create_relationship",
+            "relationship": db_relationship.name,
+            "from_table": from_table.name,
+            "to_table": to_table.name,
+            "relationship_type": db_relationship.relationship_type,
+            "attributes": [
+                {
+                    "name": attr.name,
+                    "data_type": attr.data_type,
+                    "constraints": attr.constraints,
+                }
+                for attr in db_relationship.attributes
+            ],
+        },
     )
 
-    # Prepare response
-    attributes = session.exec(
-        select(RelationshipAttribute).where(
-            RelationshipAttribute.relationship_id == db_relationship.id
-        )
-    ).all()
     return RelationshipRead(
         id=db_relationship.id,
         name=db_relationship.name,
         from_table=from_table.name,
         to_table=to_table.name,
+        relationship_type=db_relationship.relationship_type,
         attributes=[
-            RelationshipAttributeRead.model_validate(attr) for attr in attributes
+            RelationshipAttributeRead.model_validate(attr)
+            for attr in db_relationship.attributes
         ],
     )
-
-
-@router.get("/relationships/", response_model=list[RelationshipRead])
-def read_relationships(
-    session: Session = Depends(get_session), user: User = Depends(get_current_user)
-):
-    relationships = session.exec(select(RelationshipModel)).all()
-    response = []
-    for rel in relationships:
-        from_table = session.get(Table, rel.from_table_id)
-        to_table = session.get(Table, rel.to_table_id)
-        attributes = session.exec(
-            select(RelationshipAttribute).where(
-                RelationshipAttribute.relationship_id == rel.id
-            )
-        ).all()
-        response.append(
-            RelationshipRead(
-                id=rel.id,
-                name=rel.name,
-                from_table=from_table.name if from_table else "",
-                to_table=to_table.name if to_table else "",
-                attributes=[
-                    RelationshipAttributeRead.model_validate(attr)
-                    for attr in attributes
-                ],
-            )
-        )
-    return response
 
 
 @router.delete("/relationships/{relationship_id}")
@@ -146,28 +119,26 @@ def delete_relationship(
     relationship = session.get(RelationshipModel, relationship_id)
     if not relationship:
         raise HTTPException(status_code=404, detail="Relationship not found")
-    relationship_name = relationship.name
+
     try:
-        # Apply migration to drop the junction table
+        # Drop the relationship table from the database
         drop_relationship_table(relationship, session)
         session.delete(relationship)
         session.commit()
     except Exception as e:
         session.rollback()
         raise HTTPException(
-            status_code=400, detail="Relationship deletion failed"
+            status_code=400, detail="Failed to delete relationship"
         ) from e
 
     # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
-        json.dumps(
-            {
-                "type": "schema_update",
-                "action": "delete_relationship",
-                "relationship": relationship_name,
-            }
-        ),
+        {
+            "type": "schema_update",
+            "action": "delete_relationship",
+            "relationship": relationship.name,
+        },
     )
 
     return {"ok": True}

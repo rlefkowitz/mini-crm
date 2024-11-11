@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {useFormik} from 'formik';
 import * as Yup from 'yup';
-import {TableSchema, Column, Record} from '../types';
+import {TableSchema, Column, Record, EnumRead} from '../types';
 import {TextField, Button, MenuItem, FormControl, InputLabel, Select} from '@mui/material';
 import axios from '../utils/axiosConfig';
 
@@ -17,32 +17,51 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
     const [schema, setSchema] = useState<TableSchema>({});
     const [validationSchema, setValidationSchema] = useState<any>({});
     const [options, setOptions] = useState<{[key: string]: {label: string; value: any}[]}>({});
+    const [enums, setEnums] = useState<EnumRead[]>([]);
 
     const fetchSchema = async () => {
         try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/current_schema/`);
+            const response = await axios.get(`/current_schema/`);
             setSchema(response.data);
         } catch (error) {
             console.error('Error fetching schema:', error);
         }
     };
 
+    const fetchEnums = async () => {
+        try {
+            const response = await axios.get(`/enums/`);
+            setEnums(response.data);
+        } catch (error) {
+            console.error('Error fetching enums:', error);
+        }
+    };
+
     const fetchOptions = async (column: Column) => {
-        // If the column is a picklist or enum, fetch or define options
-        // This is a placeholder; implement based on your backend
-        if (column.data_type === 'enum' || column.data_type === 'picklist') {
-            // Example: Fetch options from backend or define statically
-            // Here, we'll define statically for demonstration
-            const predefinedOptions = [
-                {label: 'Option 1', value: 'option1'},
-                {label: 'Option 2', value: 'option2'},
-            ];
-            setOptions(prev => ({...prev, [column.name]: predefinedOptions}));
+        if (column.data_type === 'enum' && column.enum_id) {
+            const enumItem = enums.find(e => e.id === column.enum_id);
+            if (enumItem) {
+                setOptions(prev => ({
+                    ...prev,
+                    [column.name]: enumItem.values.map(val => ({label: val.value, value: val.value})),
+                }));
+            }
+        } else if (column.data_type === 'picklist') {
+            // Define picklist options if applicable
+            // For example purposes, using static options
+            setOptions(prev => ({
+                ...prev,
+                [column.name]: [
+                    {label: 'Option 1', value: 'option1'},
+                    {label: 'Option 2', value: 'option2'},
+                ],
+            }));
         }
     };
 
     useEffect(() => {
         fetchSchema();
+        fetchEnums();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tableName]);
 
@@ -89,13 +108,11 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
     useEffect(() => {
         if (schema[tableName]?.columns) {
             schema[tableName].columns.forEach(column => {
-                if (column.data_type === 'enum' || column.data_type === 'picklist') {
-                    fetchOptions(column);
-                }
+                fetchOptions(column);
             });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [schema, tableName]);
+    }, [schema, tableName, enums]);
 
     const formik = useFormik({
         initialValues: initialValues,
@@ -104,9 +121,9 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
         onSubmit: async values => {
             try {
                 if (mode === 'create') {
-                    await axios.post(`${process.env.API_BASE_URL}/records/${tableName}/`, values);
+                    await axios.post(`/records/${tableName}/`, values);
                 } else if (mode === 'update' && recordId) {
-                    await axios.put(`${process.env.API_BASE_URL}/records/${tableName}/${recordId}/`, values);
+                    await axios.put(`/records/${tableName}/${recordId}/`, values);
                 }
                 if (onSuccess) onSuccess();
             } catch (error) {

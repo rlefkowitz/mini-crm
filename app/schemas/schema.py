@@ -5,6 +5,9 @@ class ColumnCreate(BaseModel):
     name: str
     data_type: str
     constraints: str | None = None
+    required: bool = False
+    unique: bool = False
+    enum_id: int | None = None  # For enum columns
 
 
 class ColumnRead(BaseModel):
@@ -13,6 +16,9 @@ class ColumnRead(BaseModel):
     name: str
     data_type: str
     constraints: str | None = None
+    required: bool
+    unique: bool
+    enum_id: int | None = None
 
     class Config:
         from_attributes = True

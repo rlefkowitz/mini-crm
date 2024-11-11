@@ -1,4 +1,4 @@
-.PHONY=build up down clean migration regen-requirements setup-environment
+.PHONY=build up down db clean migration regen-requirements setup-environment
 SHELL=/bin/bash
 
 build: # builds the api and db docker images
@@ -9,6 +9,8 @@ up: # builds and runs api and db, stays attached to aggregated logs
 down: # destroys api and db containers, including the contents of the DB
 	docker compose down
 
+db: # ensures a db container is running
+	docker compose up -d db
 
 clean: # nuke everything (containers, images, networks, volumes)
 	docker compose stop;

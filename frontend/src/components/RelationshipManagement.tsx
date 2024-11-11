@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {
     Button,
     TextField,
@@ -16,47 +16,107 @@ import {
     Grid,
     IconButton,
     Typography,
+    Alert,
+    Box,
 } from '@mui/material';
 import {RemoveCircle} from '@mui/icons-material';
+import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import axios from '../utils/axiosConfig';
-import {RelationshipRead, TableRead} from '../types';
-import DynamicAttributeForm from './DynamicAttributeForm';
+import DynamicAttributeForm from './DynamicAttributeForm'; // Ensure this component handles attributes
+
+interface RelationshipAttribute {
+    name: string;
+    data_type: string;
+    constraints?: string;
+}
+
+interface Relationship {
+    id: number;
+    name: string;
+    from_table: string;
+    to_table: string;
+    relationship_type: string;
+    attributes: RelationshipAttribute[];
+}
 
 const RelationshipManagement: React.FC = () => {
-    const [relationships, setRelationships] = useState<RelationshipRead[]>([]);
-    const [tables, setTables] = useState<TableRead[]>([]);
+    const queryClient = useQueryClient();
+
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [openDialog, setOpenDialog] = useState<boolean>(false);
-    const [newRelationship, setNewRelationship] = useState({
+    const [newRelationship, setNewRelationship] = useState<{
+        name: string;
+        from_table: string;
+        to_table: string;
+        relationship_type: string;
+        attributes: RelationshipAttribute[];
+    }>({
         name: '',
         from_table: '',
         to_table: '',
-        attributes: [] as {name: string; data_type: string; constraints?: string}[],
+        relationship_type: 'one_to_many',
+        attributes: [],
+    });
+    const [error, setError] = useState<string>('');
+
+    // Fetch relationships
+    const {
+        data: relationships,
+        isLoading,
+        isError,
+    } = useQuery<Relationship[]>({
+        queryKey: ['relationships'],
+        queryFn: async () => {
+            const response = await axios.get(`/relationships/`);
+            return response.data;
+        },
     });
 
-    const fetchRelationships = async () => {
-        try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/relationships/`);
-            setRelationships(response.data);
-        } catch (error) {
-            console.error('Error fetching relationships:', error);
+    // Fetch tables for selection
+    const {data: tables} = useQuery({
+        queryKey: ['tables'],
+        queryFn: async () => {
+            const response = await axios.get(`/tables/`);
+            return response.data;
+        },
+    });
+
+    const createRelationshipMutation = useMutation({
+        mutationFn: (newRel: any) => axios.post(`/relationships/`, newRel),
+        onSuccess: () => {
+            queryClient.invalidateQueries({queryKey: ['relationships']});
+            handleCloseDialog();
+        },
+        onError: (error: any) => {
+            setError(error.response?.data?.detail || 'Failed to create relationship.');
+        },
+    });
+
+    const handleCreateRelationship = () => {
+        if (!newRelationship.name || !newRelationship.from_table || !newRelationship.to_table) {
+            setError('Please fill out all required fields.');
+            return;
+        }
+
+        createRelationshipMutation.mutate(newRelationship);
+    };
+
+    const handleDeleteRelationship = (relationshipId: number) => {
+        if (window.confirm('Are you sure you want to delete this relationship?')) {
+            axios
+                .delete(`/relationships/${relationshipId}`)
+                .then(() => {
+                    queryClient.invalidateQueries({queryKey: ['relationships']});
+                })
+                .catch((error: any) => {
+                    setError(error.response?.data?.detail || 'Failed to delete relationship.');
+                });
         }
     };
 
-    const fetchTables = async () => {
-        try {
-            const response = await axios.get(`${process.env.API_BASE_URL}/tables/`);
-            setTables(response.data);
-        } catch (error) {
-            console.error('Error fetching tables:', error);
-        }
+    const handleAttributeChange = (attributes: RelationshipAttribute[]) => {
+        setNewRelationship(prev => ({...prev, attributes}));
     };
-
-    useEffect(() => {
-        fetchRelationships();
-        fetchTables();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const handleOpenDialog = () => {
         setOpenDialog(true);
@@ -68,41 +128,18 @@ const RelationshipManagement: React.FC = () => {
             name: '',
             from_table: '',
             to_table: '',
+            relationship_type: 'one_to_many',
             attributes: [],
         });
-    };
-
-    const handleCreateRelationship = async () => {
-        try {
-            await axios.post(`${process.env.API_BASE_URL}/relationships/`, newRelationship);
-            handleCloseDialog();
-            fetchRelationships();
-        } catch (error) {
-            console.error('Error creating relationship:', error);
-            // Optionally, display error messages to users
-        }
-    };
-
-    const handleDeleteRelationship = async (relationshipId: number) => {
-        try {
-            await axios.delete(`${process.env.API_BASE_URL}/relationships/${relationshipId}`);
-            fetchRelationships();
-        } catch (error) {
-            console.error('Error deleting relationship:', error);
-            // Optionally, display error messages to users
-        }
-    };
-
-    const handleAttributeChange = (attributes: {name: string; data_type: string; constraints?: string}[]) => {
-        setNewRelationship({...newRelationship, attributes});
+        setError('');
     };
 
     return (
-        <div>
-            <Typography variant="h4" gutterBottom>
+        <Box>
+            <Typography variant="h5" gutterBottom>
                 Relationship Management
             </Typography>
-            <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '1rem'}}>
+            <Box sx={{display: 'flex', justifyContent: 'space-between', mb: 2}}>
                 <TextField
                     label="Search Relationships"
                     variant="outlined"
@@ -113,28 +150,44 @@ const RelationshipManagement: React.FC = () => {
                 <Button variant="contained" color="primary" onClick={handleOpenDialog}>
                     Add New Relationship
                 </Button>
-            </div>
+            </Box>
+            {error && (
+                <Alert severity="error" sx={{mb: 2}}>
+                    {error}
+                </Alert>
+            )}
             <List>
-                {relationships
-                    .filter(rel => rel.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map(rel => (
-                        <ListItem
-                            key={rel.id}
-                            secondaryAction={
-                                <IconButton
-                                    edge="end"
-                                    aria-label="delete"
-                                    onClick={() => handleDeleteRelationship(rel.id)}>
-                                    <RemoveCircle color="secondary" />
-                                </IconButton>
-                            }>
-                            <ListItemText primary={rel.name} secondary={`${rel.from_table} ↔ ${rel.to_table}`} />
-                        </ListItem>
-                    ))}
+                {isLoading ? (
+                    <Typography>Loading relationships...</Typography>
+                ) : isError ? (
+                    <Typography>Error loading relationships.</Typography>
+                ) : relationships && relationships.length > 0 ? (
+                    relationships
+                        .filter(rel => rel.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map(rel => (
+                            <ListItem
+                                key={rel.id}
+                                secondaryAction={
+                                    <IconButton
+                                        edge="end"
+                                        aria-label="delete"
+                                        onClick={() => handleDeleteRelationship(rel.id)}>
+                                        <RemoveCircle color="secondary" />
+                                    </IconButton>
+                                }>
+                                <ListItemText
+                                    primary={rel.name}
+                                    secondary={`${rel.from_table} ↔ ${rel.to_table} (${rel.relationship_type.replace('_', ' ')})`}
+                                />
+                            </ListItem>
+                        ))
+                ) : (
+                    <Typography>No relationships found.</Typography>
+                )}
             </List>
 
             {/* Dialog for creating a new relationship */}
-            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+            <Dialog open={openDialog} onClose={handleCloseDialog} fullWidth maxWidth="md">
                 <DialogTitle>Create New Relationship</DialogTitle>
                 <DialogContent>
                     <Grid container spacing={2}>
@@ -144,58 +197,82 @@ const RelationshipManagement: React.FC = () => {
                                 variant="outlined"
                                 fullWidth
                                 value={newRelationship.name}
-                                onChange={e => setNewRelationship({...newRelationship, name: e.target.value})}
-                                margin="normal"
+                                onChange={e => setNewRelationship(prev => ({...prev, name: e.target.value}))}
+                                required
                             />
                         </Grid>
                         <Grid item xs={12} sm={3}>
-                            <FormControl fullWidth variant="outlined" margin="normal">
+                            <FormControl fullWidth variant="outlined" required>
                                 <InputLabel>From Table</InputLabel>
                                 <Select
                                     label="From Table"
                                     value={newRelationship.from_table}
                                     onChange={e =>
-                                        setNewRelationship({...newRelationship, from_table: e.target.value as string})
+                                        setNewRelationship(prev => ({...prev, from_table: e.target.value as string}))
                                     }>
-                                    {tables.map(table => (
-                                        <MenuItem key={table.id} value={table.name}>
-                                            {table.name}
-                                        </MenuItem>
-                                    ))}
+                                    {tables &&
+                                        tables.map((table: any) => (
+                                            <MenuItem key={table.id} value={table.name}>
+                                                {table.name}
+                                            </MenuItem>
+                                        ))}
                                 </Select>
                             </FormControl>
                         </Grid>
                         <Grid item xs={12} sm={3}>
-                            <FormControl fullWidth variant="outlined" margin="normal">
+                            <FormControl fullWidth variant="outlined" required>
                                 <InputLabel>To Table</InputLabel>
                                 <Select
                                     label="To Table"
                                     value={newRelationship.to_table}
                                     onChange={e =>
-                                        setNewRelationship({...newRelationship, to_table: e.target.value as string})
+                                        setNewRelationship(prev => ({...prev, to_table: e.target.value as string}))
                                     }>
-                                    {tables.map(table => (
-                                        <MenuItem key={table.id} value={table.name}>
-                                            {table.name}
-                                        </MenuItem>
-                                    ))}
+                                    {tables &&
+                                        tables.map((table: any) => (
+                                            <MenuItem key={table.id} value={table.name}>
+                                                {table.name}
+                                            </MenuItem>
+                                        ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <FormControl fullWidth variant="outlined" required>
+                                <InputLabel>Relationship Type</InputLabel>
+                                <Select
+                                    label="Relationship Type"
+                                    value={newRelationship.relationship_type}
+                                    onChange={e =>
+                                        setNewRelationship(prev => ({
+                                            ...prev,
+                                            relationship_type: e.target.value as string,
+                                        }))
+                                    }>
+                                    <MenuItem value="one_to_one">One-to-One</MenuItem>
+                                    <MenuItem value="one_to_many">One-to-Many</MenuItem>
                                 </Select>
                             </FormControl>
                         </Grid>
                     </Grid>
-                    {/* Dynamic Attributes */}
-                    <DynamicAttributeForm attributes={newRelationship.attributes} onChange={handleAttributeChange} />
+                    <Box sx={{mt: 2}}>
+                        <Typography variant="subtitle1">Relationship Attributes</Typography>
+                        <DynamicAttributeForm
+                            attributes={newRelationship.attributes}
+                            onChange={handleAttributeChange}
+                        />
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog} color="secondary">
                         Cancel
                     </Button>
-                    <Button onClick={handleCreateRelationship} color="primary" variant="contained">
-                        Create
+                    <Button onClick={handleCreateRelationship} variant="contained" color="primary">
+                        Create Relationship
                     </Button>
                 </DialogActions>
             </Dialog>
-        </div>
+        </Box>
     );
 };
 

@@ -1,15 +1,5 @@
 import React from 'react';
-import {
-    Button,
-    TextField,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    Grid,
-    IconButton,
-    Typography,
-} from '@mui/material';
+import {Button, TextField, Select, MenuItem, FormControl, InputLabel, Grid, IconButton} from '@mui/material';
 import {AddCircle, RemoveCircle} from '@mui/icons-material';
 
 interface Attribute {
@@ -26,7 +16,7 @@ interface Props {
 const dataTypes = ['string', 'integer', 'currency', 'enum', 'picklist'];
 
 const DynamicAttributeForm: React.FC<Props> = ({attributes, onChange}) => {
-    const handleAttributeChange = (index: number, field: string, value: string) => {
+    const handleAttributeChange = (index: number, field: keyof Attribute, value: any) => {
         const newAttributes = [...attributes];
         newAttributes[index] = {...newAttributes[index], [field]: value};
         onChange(newAttributes);
@@ -42,25 +32,25 @@ const DynamicAttributeForm: React.FC<Props> = ({attributes, onChange}) => {
     };
 
     return (
-        <div style={{marginTop: '1rem'}}>
-            <Typography variant="h6">Relationship Attributes</Typography>
+        <div>
             {attributes.map((attr, index) => (
-                <Grid container spacing={2} alignItems="center" key={index} style={{marginBottom: '0.5rem'}}>
-                    <Grid item xs={4}>
+                <Grid container spacing={2} alignItems="center" key={index} sx={{mt: 1}}>
+                    <Grid item xs={3}>
                         <TextField
                             label="Attribute Name"
                             variant="outlined"
                             fullWidth
                             value={attr.name}
                             onChange={e => handleAttributeChange(index, 'name', e.target.value)}
+                            required
                         />
                     </Grid>
                     <Grid item xs={3}>
-                        <FormControl fullWidth variant="outlined">
+                        <FormControl fullWidth variant="outlined" required>
                             <InputLabel>Data Type</InputLabel>
                             <Select
-                                value={attr.data_type}
                                 label="Data Type"
+                                value={attr.data_type}
                                 onChange={e => handleAttributeChange(index, 'data_type', e.target.value as string)}>
                                 {dataTypes.map(type => (
                                     <MenuItem key={type} value={type}>
@@ -77,17 +67,20 @@ const DynamicAttributeForm: React.FC<Props> = ({attributes, onChange}) => {
                             fullWidth
                             value={attr.constraints}
                             onChange={e => handleAttributeChange(index, 'constraints', e.target.value)}
-                            helperText='JSON format, e.g., {"required": true}'
+                            helperText='e.g., "CHECK (value > 0)"'
                         />
                     </Grid>
-                    <Grid item xs={1}>
-                        <IconButton color="secondary" onClick={() => handleRemoveAttribute(index)}>
+                    <Grid item xs={2}>
+                        <IconButton
+                            color="secondary"
+                            onClick={() => handleRemoveAttribute(index)}
+                            disabled={attributes.length === 1}>
                             <RemoveCircle />
                         </IconButton>
                     </Grid>
                 </Grid>
             ))}
-            <Button variant="outlined" startIcon={<AddCircle />} onClick={handleAddAttribute}>
+            <Button variant="outlined" startIcon={<AddCircle />} onClick={handleAddAttribute} sx={{mt: 2}}>
                 Add Attribute
             </Button>
         </div>

@@ -16,6 +16,7 @@ from utilities import envs
 # Ensure .env is loaded before we import env var dependent stuff
 load_dotenv()
 
+import app.models
 from app.databases import database
 from app.routes import router
 from app.websocket import router as websocket_router
@@ -63,6 +64,14 @@ def init_db():
     log.info("DB initialization complete\n")
 
 
+def init_debugger():
+    import debugpy
+
+    debugpy.listen(("0.0.0.0", 5678))  # Use a port different from your app, e.g., 5678
+    log.info("Waiting for debugger attach")
+    debugpy.wait_for_client()  # Blocks execution until client is attached
+
+
 def handle_pending_tasks():
     loop = asyncio.get_event_loop()
     pending = asyncio.all_tasks(loop)
@@ -72,6 +81,7 @@ def handle_pending_tasks():
 
     for t in pending:
         log.info(f"  {t}")
+        # TODO: if any tasks are unexpected, log.warning or do something about it
 
 
 def handle_disconnect_db():
@@ -86,6 +96,7 @@ def handle_disconnect_db():
 try:
     init_loggers()
 
+    # API Docs are unprotected only when running locally
     if envs.get_env() in envs.HOSTED_ENVS:
         app = FastAPI(
             lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
@@ -112,6 +123,9 @@ try:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    if envs.get_env() == envs.DEV and os.environ.get("ENABLE_DEBUGGER") == "true":
+        init_debugger()
 
 except Exception as e:
     logging.critical(f"Error loading app: {e}", exc_info=True)

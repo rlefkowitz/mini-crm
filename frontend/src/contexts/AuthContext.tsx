@@ -25,10 +25,14 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
 
     const login = async (username: string, password: string) => {
         try {
-            const response = await axios.post(`/auth/login`, {
-                username,
-                password,
-            });
+            const response = await axios.post(
+                `/auth/login`,
+                {
+                    username,
+                    password,
+                },
+                {headers: {'content-type': 'application/x-www-form-urlencoded'}}
+            );
             localStorage.setItem('token', response.data.access_token);
             setIsAuthenticated(true);
             navigate('/schema');

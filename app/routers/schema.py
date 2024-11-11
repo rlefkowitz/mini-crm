@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -10,7 +9,13 @@ from app.models.schema import Column, Table
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.schema import ColumnCreate, ColumnRead, TableCreate, TableRead
-from app.utils.migration import add_column, create_table, drop_column, drop_table
+from app.utils.migration import (
+    add_column,
+    create_table,
+    drop_column,
+    drop_table,
+    update_column,
+)
 from app.websocket import manager
 
 router = APIRouter()
@@ -99,11 +104,24 @@ def create_column_endpoint(
     table = session.get(Table, table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    # Build constraints string based on 'required' and 'unique'
+    constraints = []
+    if column.required:
+        constraints.append("NOT NULL")
+    if column.unique:
+        constraints.append("UNIQUE")
+    if column.constraints:
+        constraints.append(column.constraints)
+    constraints_str = " ".join(constraints) if constraints else None
+
     db_column = Column(
         table_id=table_id,
         name=column.name,
         data_type=column.data_type,
-        constraints=column.constraints,
+        constraints=constraints_str,
+        required=column.required,
+        unique=column.unique,
+        enum_id=column.enum_id,
     )
     session.add(db_column)
     try:
@@ -158,11 +176,10 @@ def delete_column_endpoint(
     session.delete(column)
     try:
         session.commit()
-        drop_column(table.name, column_name)  # Apply migration
+        drop_column(table.name, column_name)
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column deletion failed") from e
-    # Broadcast schema update
     background_tasks.add_task(
         manager.broadcast,
         json.dumps(
@@ -177,7 +194,60 @@ def delete_column_endpoint(
     return {"ok": True}
 
 
-# Current Schema Endpoint
+@router.put("/columns/{column_id}/", response_model=ColumnRead)
+def update_column_endpoint(
+    column_id: int,
+    column: ColumnCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    db_column = session.get(Column, column_id)
+    if not db_column:
+        raise HTTPException(status_code=404, detail="Column not found")
+
+    # Build constraints string based on 'required' and 'unique'
+    constraints = []
+    if column.required:
+        constraints.append("NOT NULL")
+    if column.unique:
+        constraints.append("UNIQUE")
+    if column.constraints:
+        constraints.append(column.constraints)
+    constraints_str = " ".join(constraints) if constraints else None
+
+    # Update fields
+    db_column.name = column.name
+    db_column.data_type = column.data_type
+    db_column.constraints = constraints_str
+    db_column.required = column.required
+    db_column.unique = column.unique
+    db_column.enum_id = column.enum_id
+
+    session.add(db_column)
+    try:
+        session.commit()
+        session.refresh(db_column)
+        update_column(db_column, session)  # Apply migration
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Column update failed") from e
+
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "update_column",
+                "table": db_column.table.name,
+                "column": db_column.name,
+            }
+        ),
+    )
+
+    return db_column
+
+
 @router.get("/current_schema/")
 def get_current_schema(
     session: Session = Depends(get_session), user: User = Depends(get_current_user)
@@ -190,9 +260,13 @@ def get_current_schema(
         schema[table.name] = {
             "columns": [
                 {
+                    "id": column.id,
                     "name": column.name,
                     "data_type": column.data_type,
                     "constraints": column.constraints,
+                    "required": column.required,
+                    "unique": column.unique,
+                    "enum_id": column.enum_id,
                 }
                 for column in columns
             ],
@@ -201,6 +275,7 @@ def get_current_schema(
                     {
                         "relationship": rel.name,
                         "to_table": session.get(Table, rel.to_table_id).name,
+                        "relationship_type": rel.relationship_type,
                         "attributes": (
                             json.loads(rel.attributes) if rel.attributes else []
                         ),
@@ -212,6 +287,7 @@ def get_current_schema(
                     {
                         "relationship": rel.name,
                         "from_table": session.get(Table, rel.from_table_id).name,
+                        "relationship_type": rel.relationship_type,
                         "attributes": (
                             json.loads(rel.attributes) if rel.attributes else []
                         ),
