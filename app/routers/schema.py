@@ -1,9 +1,11 @@
 import json
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.databases.database import get_session
+from app.models import Column, EnumModel, Table
 from app.models.relationship import RelationshipModel
 from app.models.schema import Column, Table
 from app.models.user import User
@@ -253,54 +255,138 @@ def update_column_endpoint(
     return db_column
 
 
-@router.get("/current_schema/")
-def get_current_schema(
-    session: Session = Depends(get_session), user: User = Depends(get_current_user)
-):
-    tables = session.exec(select(Table)).all()
-    relationships = session.exec(select(RelationshipModel)).all()
-    schema = {}
-    for table in tables:
-        columns = session.exec(select(Column).where(Column.table_id == table.id)).all()
-        schema[table.name] = {
-            "columns": [
-                {
+@router.get("/current_schema/", response_model=dict[str, Any])
+def get_current_schema(session: Session = Depends(get_session)):
+    try:
+        schema = {}
+        tables = session.exec(select(Table)).all()
+        for table in tables:
+            table_info = {
+                "id": table.id,
+                "name": table.name,
+                "columns": [],
+                "relationships_from": [],
+                "relationships_to": [],
+                "records": [],
+            }
+
+            # Columns
+            for column in table.columns:
+                column_info = {
                     "id": column.id,
                     "name": column.name,
                     "data_type": column.data_type,
                     "constraints": column.constraints,
+                    "enum_id": column.enum_id,
                     "required": column.required,
                     "unique": column.unique,
-                    "enum_id": column.enum_id,
                     "searchable": column.searchable,
+                    "created_at": column.created_at.isoformat(),
+                    "updated_at": column.updated_at.isoformat(),
                 }
-                for column in columns
-            ],
-            "relationships": {
-                "from": [
-                    {
-                        "relationship": rel.name,
-                        "to_table": session.get(Table, rel.to_table_id).name,
-                        "relationship_type": rel.relationship_type,
-                        "attributes": (
-                            json.loads(rel.attributes) if rel.attributes else []
-                        ),
-                    }
-                    for rel in relationships
-                    if rel.from_table_id == table.id
-                ],
-                "to": [
-                    {
-                        "relationship": rel.name,
-                        "from_table": session.get(Table, rel.from_table_id).name,
-                        "relationship_type": rel.relationship_type,
-                        "attributes": (
-                            json.loads(rel.attributes) if rel.attributes else []
-                        ),
-                    }
-                    for rel in relationships
-                    if rel.to_table_id == table.id
-                ],
-            },
-        }
-    return schema
+                table_info["columns"].append(column_info)
+
+            # Relationships From
+            for rel in table.relationships_from:
+                rel_info = {
+                    "id": rel.id,
+                    "name": rel.name,
+                    "relationship_type": rel.relationship_type.value,
+                    "to_table_id": rel.to_table_id,
+                    "attributes": [
+                        {
+                            "id": attr.id,
+                            "name": attr.name,
+                            "data_type": attr.data_type,
+                            "constraints": attr.constraints,
+                        }
+                        for attr in rel.relationship_attributes
+                    ],
+                    "junctions": [
+                        {
+                            "id": junction.id,
+                            "relationship_id": junction.relationship_id,
+                            "from_record_id": junction.from_record_id,
+                            "to_record_id": junction.to_record_id,
+                            "attributes": junction.attributes,  # Already a dict
+                        }
+                        for junction in rel.junctions
+                    ],
+                }
+                table_info["relationships_from"].append(rel_info)
+
+            # Relationships To
+            for rel in table.relationships_to:
+                rel_info = {
+                    "id": rel.id,
+                    "name": rel.name,
+                    "relationship_type": rel.relationship_type.value,
+                    "from_table_id": rel.from_table_id,
+                    "attributes": [
+                        {
+                            "id": attr.id,
+                            "name": attr.name,
+                            "data_type": attr.data_type,
+                            "constraints": attr.constraints,
+                        }
+                        for attr in rel.relationship_attributes
+                    ],
+                    "junctions": [
+                        {
+                            "id": junction.id,
+                            "relationship_id": junction.relationship_id,
+                            "from_record_id": junction.from_record_id,
+                            "to_record_id": junction.to_record_id,
+                            "attributes": junction.attributes,  # Already a dict
+                        }
+                        for junction in rel.junctions
+                    ],
+                }
+                table_info["relationships_to"].append(rel_info)
+
+            # Records
+            for record in table.records:
+                record_info = {
+                    "id": record.id,
+                    "table_id": record.table_id,
+                    "data": record.data,
+                    "created_at": record.created_at.isoformat(),
+                    "updated_at": record.updated_at.isoformat(),
+                    "from_relationships": [
+                        {
+                            "id": junction.id,
+                            "relationship_id": junction.relationship_id,
+                            "to_record_id": junction.to_record_id,
+                            "attributes": junction.attributes,  # Already a dict
+                        }
+                        for junction in record.from_relationships
+                    ],
+                    "to_relationships": [
+                        {
+                            "id": junction.id,
+                            "relationship_id": junction.relationship_id,
+                            "from_record_id": junction.from_record_id,
+                            "attributes": junction.attributes,  # Already a dict
+                        }
+                        for junction in record.to_relationships
+                    ],
+                }
+                table_info["records"].append(record_info)
+
+            schema[table.name] = table_info
+
+        # Enums
+        enums = session.exec(select(EnumModel)).all()
+        enum_info = {}
+        for enum in enums:
+            enum_info[enum.name] = {
+                "id": enum.id,
+                "name": enum.name,
+                "values": [value.value for value in enum.values],
+                "columns": [column.name for column in enum.columns],
+            }
+
+        return {"tables": schema, "enums": enum_info}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

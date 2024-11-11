@@ -28,8 +28,8 @@ class RelationshipAttributeRead(BaseModel):
 
 class RelationshipCreate(BaseModel):
     name: str
-    from_table_id: int
-    to_table_id: int
+    from_table: str
+    to_table: str
     relationship_type: RelationshipType
     attributes: list[RelationshipAttributeCreate] | None = []
 
@@ -37,8 +37,8 @@ class RelationshipCreate(BaseModel):
 class RelationshipRead(BaseModel):
     id: int
     name: str
-    from_table_id: int
-    to_table_id: int
+    from_table: str
+    to_table: str
     relationship_type: RelationshipType
     attributes: list[RelationshipAttributeRead] = []
 

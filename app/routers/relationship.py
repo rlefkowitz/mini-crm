@@ -18,6 +18,21 @@ from app.websocket import manager
 router = APIRouter()
 
 
+def get_table_by_name(name: str, session: Session) -> Table:
+    table = session.exec(select(Table).where(Table.name == name)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return table
+
+
+def fetch_tables_from_create(relationship: RelationshipCreate, session: Session):
+    from_table = get_table_by_name(relationship.from_table, session)
+    to_table = get_table_by_name(relationship.to_table, session)
+    if not from_table or not to_table:
+        raise HTTPException(status_code=404, detail="One or both tables not found")
+    return from_table, to_table
+
+
 @router.post("/relationships/", response_model=RelationshipRead)
 def create_relationship(
     relationship: RelationshipCreate,
@@ -35,16 +50,15 @@ def create_relationship(
         )
 
     # Verify that from_table and to_table exist
-    from_table = session.get(Table, relationship.from_table_id)
-    to_table = session.get(Table, relationship.to_table_id)
+    from_table, to_table = fetch_tables_from_create(relationship, session)
     if not from_table or not to_table:
         raise HTTPException(status_code=404, detail="One or both tables not found")
 
     # Create RelationshipModel
     db_relationship = RelationshipModel(
         name=relationship.name,
-        from_table_id=relationship.from_table_id,
-        to_table_id=relationship.to_table_id,
+        from_table_id=from_table.id,
+        to_table_id=to_table.id,
         relationship_type=relationship.relationship_type,
     )
     session.add(db_relationship)
@@ -84,8 +98,8 @@ def create_relationship(
                 "relationship": {
                     "id": db_relationship.id,
                     "name": db_relationship.name,
-                    "from_table_id": db_relationship.from_table_id,
-                    "to_table_id": db_relationship.to_table_id,
+                    "from_table": db_relationship.from_table.name,
+                    "to_table": db_relationship.to_table.name,
                     "relationship_type": db_relationship.relationship_type,
                     "attributes": [
                         {
@@ -106,7 +120,7 @@ def create_relationship(
     # Adjust this logic based on your specific requirements
 
     # Mark related table columns as searchable
-    to_table = session.get(Table, relationship.to_table_id)
+    to_table = get_table_by_name(relationship.to_table_id, session)
     if to_table:
         # For example, mark the 'name' column as searchable
         name_column = session.exec(
@@ -140,8 +154,8 @@ def create_relationship(
     return RelationshipRead(
         id=db_relationship.id,
         name=db_relationship.name,
-        from_table_id=db_relationship.from_table_id,
-        to_table_id=db_relationship.to_table_id,
+        from_table=db_relationship.from_table.name,
+        to_table=db_relationship.to_table.name,
         relationship_type=db_relationship.relationship_type,
         attributes=[
             RelationshipAttributeRead.model_validate(attr)
@@ -160,8 +174,8 @@ def read_relationships(
         RelationshipRead(
             id=rel.id,
             name=rel.name,
-            from_table_id=rel.from_table_id,
-            to_table_id=rel.to_table_id,
+            from_table=rel.from_table.name,
+            to_table=rel.to_table.name,
             relationship_type=rel.relationship_type,
             attributes=[
                 RelationshipAttributeRead.model_validate(attr)
@@ -184,8 +198,8 @@ def read_relationship(
     return RelationshipRead(
         id=relationship.id,
         name=relationship.name,
-        from_table_id=relationship.from_table_id,
-        to_table_id=relationship.to_table_id,
+        from_table=relationship.from_table.name,
+        to_table=relationship.to_table.name,
         relationship_type=relationship.relationship_type,
         attributes=[
             RelationshipAttributeRead.model_validate(attr)
@@ -207,9 +221,10 @@ def update_relationship(
         raise HTTPException(status_code=404, detail="Relationship not found")
 
     # Update basic fields
+    from_table, to_table = fetch_tables_from_create(relationship, session)
     db_relationship.name = relationship.name
-    db_relationship.from_table_id = relationship.from_table_id
-    db_relationship.to_table_id = relationship.to_table_id
+    db_relationship.from_table_id = from_table.id
+    db_relationship.to_table_id = to_table.id
     db_relationship.relationship_type = relationship.relationship_type
 
     session.add(db_relationship)
@@ -266,8 +281,8 @@ def update_relationship(
                 "relationship": {
                     "id": db_relationship.id,
                     "name": db_relationship.name,
-                    "from_table_id": db_relationship.from_table_id,
-                    "to_table_id": db_relationship.to_table_id,
+                    "from_table": db_relationship.from_table.name,
+                    "to_table": db_relationship.to_table.name,
                     "relationship_type": db_relationship.relationship_type,
                     "attributes": [
                         {
@@ -286,8 +301,8 @@ def update_relationship(
     return RelationshipRead(
         id=db_relationship.id,
         name=db_relationship.name,
-        from_table_id=db_relationship.from_table_id,
-        to_table_id=db_relationship.to_table_id,
+        from_table=db_relationship.from_table.name,
+        to_table=db_relationship.to_table.name,
         relationship_type=db_relationship.relationship_type,
         attributes=[
             RelationshipAttributeRead.model_validate(attr)

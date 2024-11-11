@@ -121,7 +121,6 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({open, handleClose, tab
     };
 
     const columnsDef: GridColDef[] = [
-        {field: 'id', headerName: 'ID', width: 70},
         {field: 'name', headerName: 'Name', width: 200, editable: false},
         {field: 'data_type', headerName: 'Data Type', width: 150, editable: false},
         {field: 'constraints', headerName: 'Constraints', width: 200, editable: false},

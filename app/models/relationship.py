@@ -22,7 +22,7 @@ class RelationshipAttribute(SQLModel, table=True):
     constraints: str | None = None
 
     relationship: Optional["RelationshipModel"] = Relationship(
-        back_populates="attributes"
+        back_populates="relationship_attributes"
     )
 
 
@@ -33,11 +33,11 @@ class RelationshipModel(SQLModel, table=True):
     to_table_id: int = Field(foreign_key="table.id")
     relationship_type: RelationshipType
 
-    attributes: list["RelationshipAttribute"] = Relationship(
-        back_populates="relationship", sa_relationship_kwargs=dict(cascade="delete")
+    relationship_attributes: list["RelationshipAttribute"] = Relationship(
+        back_populates="relationship", sa_relationship_kwargs={"cascade": "delete"}
     )
     junctions: list["RelationshipJunctionModel"] = Relationship(
-        back_populates="relationship", sa_relationship_kwargs=dict(cascade="delete")
+        back_populates="relationship", sa_relationship_kwargs={"cascade": "delete"}
     )
 
     from_table: Optional["Table"] = Relationship(

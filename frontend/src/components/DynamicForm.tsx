@@ -126,11 +126,12 @@ const DynamicForm: React.FC<DynamicFormProps> = ({tableName, mode, initialValues
         onSubmit: async values => {
             try {
                 if (mode === 'create') {
-                    const response = await axios.post(`/records/${tableName}/`, values);
+                    const response = await axios.post(`/records/${tableName}/`, {data: values});
                     // Handle relationships if any
                     handleRelationships(response.data.id, values);
                 } else if (mode === 'update' && recordId) {
-                    const response = await axios.put(`/records/${tableName}/${recordId}/`, values);
+                    const {id, ...rest} = values as any & {id?: any};
+                    const response = await axios.put(`/records/${tableName}/${recordId}/`, {data: rest});
                     // Handle relationships if any
                     handleRelationships(recordId, values);
                 }

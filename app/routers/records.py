@@ -271,7 +271,7 @@ def update_record(
     validate_record_data(table, record.data, session)
 
     # Update fields
-    db_record.data.update(record.data)
+    db_record.data = record.data
     db_record.updated_at = datetime.now(timezone.utc)
     session.add(db_record)
     try:
@@ -448,16 +448,20 @@ def delete_record(
         raise HTTPException(status_code=400, detail="Record deletion failed") from e
 
     # Remove related relationship junctions
-    session.exec(
+    rjm = session.exec(
         select(RelationshipJunctionModel).where(
             RelationshipJunctionModel.from_record_id == db_record.id
         )
-    ).delete(synchronize_session=False)
-    session.exec(
+    ).first()
+    if rjm:
+        session.delete(rjm)
+    rjm = session.exec(
         select(RelationshipJunctionModel).where(
             RelationshipJunctionModel.to_record_id == db_record.id
         )
-    ).delete(synchronize_session=False)
+    )
+    if rjm:
+        session.delete(rjm)
     session.commit()
 
     # Remove from Elasticsearch if indexed

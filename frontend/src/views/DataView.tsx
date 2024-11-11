@@ -44,7 +44,7 @@ const DataView: React.FC = () => {
     const fetchRecords = async () => {
         try {
             const response = await axios.get(`/records/${selectedTable}/`);
-            setRecords(response.data);
+            setRecords(response.data.map((record: Record) => ({id: record.id, ...record.data})));
         } catch (error) {
             console.error('Error fetching records:', error);
         }

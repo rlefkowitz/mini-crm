@@ -24,13 +24,13 @@ const ObjectSummary: React.FC<ObjectSummaryProps> = ({tableName, recordId}) => {
     const fetchRelatedData = async (relationship: RelationshipRead) => {
         try {
             // const relTable = relationship.name.toLowerCase();
-            const fromField = `${relationship.from_table.toLowerCase()}_id`;
-            const toField = `${relationship.to_table.toLowerCase()}_id`;
+            const fromField = `${relationship.from_table.toLowerCase()}`;
+            const toField = `${relationship.to_table.toLowerCase()}`;
             const isFrom = relationship.from_table === tableName;
             const queryParam = isFrom ? fromField : toField;
             // const relatedTable = isFrom ? relationship.to_table : relationship.from_table;
 
-            const response = await axios.get(`${process.env.API_BASE_URL}/records/${relationship.name}/`, {
+            const response = await axios.get(`/records/${relationship.name}/`, {
                 params: {[queryParam]: recordId},
             });
 
