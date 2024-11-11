@@ -21,10 +21,16 @@ class Record(SQLModel, table=True):
 
     # Relationships where this record is the 'from' side
     from_relationships: list["RelationshipJunctionModel"] = Relationship(
-        back_populates="from_record"
+        back_populates="from_record",
+        sa_relationship_kwargs={
+            "foreign_keys": "RelationshipJunctionModel.from_record_id"
+        },
     )
 
     # Relationships where this record is the 'to' side
     to_relationships: list["RelationshipJunctionModel"] = Relationship(
-        back_populates="to_record"
+        back_populates="to_record",
+        sa_relationship_kwargs={
+            "foreign_keys": "RelationshipJunctionModel.to_record_id"
+        },
     )

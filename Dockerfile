@@ -33,5 +33,5 @@ RUN mkdir -p /mini-crm/static
 # Copy built frontend assets from frontend-build stage to static directory
 COPY --from=frontend-build /mini-crm/frontend/build /mini-crm/static
 
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+EXPOSE 8888
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8888", "--reload"]

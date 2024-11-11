@@ -4,7 +4,7 @@ type MessageHandler = (message: any) => void;
 
 const useWebSocket = (onMessage: MessageHandler) => {
     useEffect(() => {
-        const ws = new WebSocket(process.env.WS_URL || 'ws://localhost:8000/ws');
+        const ws = new WebSocket(process.env.WS_URL || 'ws://localhost:8888/ws');
 
         ws.onopen = () => {
             console.log('WebSocket connected');

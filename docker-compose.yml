@@ -7,12 +7,12 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - "8000:8000"
+      - "8888:8888"
     volumes:
       - ./:/mini-crm/
     environment:
       DB_HOST: "db"
-      DB_PORT: "5432"
+      DB_PORT: "5440"
       DB_USER: "crmadmin"
       DB_PASS: "password"
       DB_NAME: "mini_crm_db"
@@ -28,15 +28,16 @@ services:
     networks:
       - crm-network
     expose:
-      - "5432"
+      - "5440"
     ports:
-      - 5432:5432
+      - 5440:5440
     restart: always
     shm_size: 128mb
     environment:
       POSTGRES_PASSWORD: password
       POSTGRES_USER: crmadmin
       POSTGRES_DB: mini_crm_db
+      PGPORT: 5440
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U crmadmin -d mini_crm_db" ]
       interval: 5s
@@ -50,7 +51,7 @@ services:
     networks:
       - crm-network
     ports:
-      - 8080:8080
+      - 8090:8080
     depends_on:
       db:
         condition: service_healthy

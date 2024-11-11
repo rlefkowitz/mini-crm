@@ -5,6 +5,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .relationship_junction import RelationshipJunctionModel
+    from .schema import Table
 
 
 class RelationshipType(str, Enum):
@@ -32,9 +33,18 @@ class RelationshipModel(SQLModel, table=True):
     to_table_id: int = Field(foreign_key="table.id")
     relationship_type: RelationshipType
 
-    attributes: list[RelationshipAttribute] = Relationship(
+    attributes: list["RelationshipAttribute"] = Relationship(
         back_populates="relationship", sa_relationship_kwargs=dict(cascade="delete")
     )
     junctions: list["RelationshipJunctionModel"] = Relationship(
         back_populates="relationship", sa_relationship_kwargs=dict(cascade="delete")
+    )
+
+    from_table: Optional["Table"] = Relationship(
+        back_populates="relationships_from",
+        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.from_table_id"},
+    )
+    to_table: Optional["Table"] = Relationship(
+        back_populates="relationships_to",
+        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.to_table_id"},
     )

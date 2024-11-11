@@ -6,7 +6,7 @@ dotenv.config({path: path.join(__dirname, '../.env')});
 
 async function main() {
     try {
-        const openApiResponse = await axios.get('http://localhost:8000/openapi.json', {
+        const openApiResponse = await axios.get('http://localhost:8888/openapi.json', {
             auth: {
                 username: 'admin',
                 password: 'password',

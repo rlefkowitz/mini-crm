@@ -40,11 +40,11 @@ class Table(SQLModel, table=True):
 
     relationships_from: list["RelationshipModel"] = Relationship(
         back_populates="from_table",
-        sa_relationship_kwargs={"foreign_keys": "[RelationshipModel.from_table_id]"},
+        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.from_table_id"},
     )
     relationships_to: list["RelationshipModel"] = Relationship(
         back_populates="to_table",
-        sa_relationship_kwargs={"foreign_keys": "[RelationshipModel.to_table_id]"},
+        sa_relationship_kwargs={"foreign_keys": "RelationshipModel.to_table_id"},
     )
 
     records: list["Record"] = Relationship(back_populates="table")

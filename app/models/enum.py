@@ -16,5 +16,5 @@ class EnumModel(SQLModel, table=True):
     name: str = Field(index=True, unique=True, nullable=False)
 
     values: list[EnumValueModel] = Relationship(
-        back_populates="enum", sa_relationship_kwargs=dict(cascade="delete")
+        back_populates="enum", sa_relationship_kwargs={"cascade": "delete"}
     )
