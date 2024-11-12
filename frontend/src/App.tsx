@@ -1,10 +1,10 @@
-import React, {useState, useMemo} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {BrowserRouter as Router, Routes, Route, Link, Navigate} from 'react-router-dom';
 import {AppBar, Toolbar, Typography, Button, IconButton, CssBaseline, Box} from '@mui/material';
 import {Brightness4, Brightness7} from '@mui/icons-material';
 import SchemaView from './views/SchemaView';
 import DataView from './views/DataView';
-import RelationshipView from './views/RelationshipView';
+import LinkTableView from './views/LinkTableView';
 import NodeView from './views/NodeView';
 import EnumManagement from './components/EnumManagement';
 import Login from './components/Login';
@@ -19,9 +19,14 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 const queryClient = new QueryClient();
 
 const App: React.FC = () => {
-    const [mode, setMode] = useState<'light' | 'dark'>('light');
+    const storedMode = localStorage.getItem('themeMode') as 'light' | 'dark' | null;
+    const [mode, setMode] = useState<'light' | 'dark'>(storedMode || 'dark');
 
     const theme = useMemo(() => getTheme(mode), [mode]);
+
+    useEffect(() => {
+        localStorage.setItem('themeMode', mode);
+    }, [mode]);
 
     const toggleTheme = () => {
         setMode(prev => (prev === 'light' ? 'dark' : 'light'));
@@ -47,8 +52,8 @@ const App: React.FC = () => {
                                 <Button color="inherit" component={Link} to="/data">
                                     Data
                                 </Button>
-                                <Button color="inherit" component={Link} to="/relationships">
-                                    Relationships
+                                <Button color="inherit" component={Link} to="/link-tables">
+                                    Link Tables
                                 </Button>
                                 <Button color="inherit" component={Link} to="/enums">
                                     Enums
@@ -83,10 +88,10 @@ const App: React.FC = () => {
                                     }
                                 />
                                 <Route
-                                    path="/relationships"
+                                    path="/link-tables"
                                     element={
                                         <ProtectedRoute>
-                                            <RelationshipView />
+                                            <LinkTableView />
                                         </ProtectedRoute>
                                     }
                                 />

@@ -1,20 +1,19 @@
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import axios from '../utils/axiosConfig';
 import useWebSocketConnection from './useWebSocket';
-import {Column, EnumRead, RelationshipRead} from '../types';
+import {Column, EnumRead} from '../types';
+import {useAuth} from '../contexts/AuthContext';
 
 interface Schema {
     [tableName: string]: {
         columns: Column[];
-        relationships: {
-            from: RelationshipRead[]; // Relationships originating from this table
-            to: RelationshipRead[]; // Relationships pointing to this table
-        };
+        link_tables: any[]; // Adjust this type based on your actual schema
     };
 }
 
 const useSchema = () => {
     const queryClient = useQueryClient();
+    const {isAuthenticated} = useAuth();
 
     const {
         data: schema,
@@ -24,9 +23,10 @@ const useSchema = () => {
         queryKey: ['schema'],
         queryFn: async () => {
             const response = await axios.get(`/current_schema/`);
-            return response.data;
+            return response.data.schema; // Adjusted to return the schema object
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
+        enabled: isAuthenticated,
     });
 
     const {data: enums} = useQuery<EnumRead[], Error>({
@@ -36,6 +36,7 @@ const useSchema = () => {
             return response.data;
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
+        enabled: isAuthenticated,
     });
 
     const handleWebSocketMessage = (message: any) => {
@@ -51,29 +52,10 @@ const useSchema = () => {
                     queryClient.invalidateQueries({queryKey: ['enums']});
                     break;
 
-                // Table-related actions
-                case 'create_table':
-                case 'update_table':
-                case 'delete_table':
-                    queryClient.invalidateQueries({queryKey: ['schema']});
-                    break;
-
-                // Column-related actions
-                case 'create_column':
-                case 'update_column':
-                case 'delete_column':
-                    queryClient.invalidateQueries({queryKey: ['schema']});
-                    break;
-
-                // Relationship-related actions
-                case 'create_relationship':
-                case 'update_relationship':
-                case 'delete_relationship':
-                    queryClient.invalidateQueries({queryKey: ['schema']});
-                    break;
-
+                // Schema-related actions
                 default:
-                    console.warn(`Unhandled schema update action: ${action}`);
+                    queryClient.invalidateQueries({queryKey: ['schema']});
+                    break;
             }
         }
     };

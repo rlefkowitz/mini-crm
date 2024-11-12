@@ -9,9 +9,7 @@ from sqlmodel import SQLModel
 
 load_dotenv(override=True)
 
-from app.models.relationship import *
-from app.models.schema import *
-from app.models.user import *
+from app.models import *
 from utilities import envs
 
 # this is the Alembic Config object, which provides

@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 54af5631a2fb
+Revision ID: 4bfd7ffbf7cf
 Revises: 
-Create Date: 2024-11-11 19:55:35.009049
+Create Date: 2024-11-12 06:36:19.651906
 
 """
 from alembic import op
@@ -11,7 +11,7 @@ import sqlmodel
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '54af5631a2fb'
+revision = '4bfd7ffbf7cf'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -47,6 +47,7 @@ def upgrade() -> None:
     sa.Column('table_id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('data_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('is_list', sa.Boolean(), nullable=False),
     sa.Column('constraints', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('enum_id', sa.Integer(), nullable=True),
     sa.Column('required', sa.Boolean(), nullable=False),
@@ -68,6 +69,16 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_enumvaluemodel_value'), 'enumvaluemodel', ['value'], unique=False)
+    op.create_table('linktable',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('from_table_id', sa.Integer(), nullable=False),
+    sa.Column('to_table_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['from_table_id'], ['table.id'], ),
+    sa.ForeignKeyConstraint(['to_table_id'], ['table.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_linktable_name'), 'linktable', ['name'], unique=True)
     op.create_table('record',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('table_id', sa.Integer(), nullable=False),
@@ -77,17 +88,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['table_id'], ['table.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('relationshipmodel',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('from_table_id', sa.Integer(), nullable=False),
-    sa.Column('to_table_id', sa.Integer(), nullable=False),
-    sa.Column('relationship_type', sa.Enum('one_to_one', 'one_to_many', 'many_to_many', name='relationshiptype'), nullable=False),
-    sa.ForeignKeyConstraint(['from_table_id'], ['table.id'], ),
-    sa.ForeignKeyConstraint(['to_table_id'], ['table.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_relationshipmodel_name'), 'relationshipmodel', ['name'], unique=True)
     op.create_table('user',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -100,23 +100,30 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_user_email'), 'user', ['email'], unique=True)
-    op.create_table('relationshipattribute',
+    op.create_table('linkcolumn',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('relationship_id', sa.Integer(), nullable=False),
+    sa.Column('link_table_id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('data_type', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('is_list', sa.Boolean(), nullable=False),
     sa.Column('constraints', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-    sa.ForeignKeyConstraint(['relationship_id'], ['relationshipmodel.id'], ),
+    sa.Column('enum_id', sa.Integer(), nullable=True),
+    sa.Column('required', sa.Boolean(), nullable=False),
+    sa.Column('unique', sa.Boolean(), nullable=False),
+    sa.ForeignKeyConstraint(['enum_id'], ['enummodel.id'], ),
+    sa.ForeignKeyConstraint(['link_table_id'], ['linktable.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('relationshipjunctionmodel',
+    op.create_table('linkrecord',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('relationship_id', sa.Integer(), nullable=False),
+    sa.Column('link_table_id', sa.Integer(), nullable=False),
     sa.Column('from_record_id', sa.Integer(), nullable=False),
     sa.Column('to_record_id', sa.Integer(), nullable=False),
-    sa.Column('attributes', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['from_record_id'], ['record.id'], ),
-    sa.ForeignKeyConstraint(['relationship_id'], ['relationshipmodel.id'], ),
+    sa.ForeignKeyConstraint(['link_table_id'], ['linktable.id'], ),
     sa.ForeignKeyConstraint(['to_record_id'], ['record.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -125,13 +132,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table('relationshipjunctionmodel')
-    op.drop_table('relationshipattribute')
+    op.drop_table('linkrecord')
+    op.drop_table('linkcolumn')
     op.drop_index(op.f('ix_user_email'), table_name='user')
     op.drop_table('user')
-    op.drop_index(op.f('ix_relationshipmodel_name'), table_name='relationshipmodel')
-    op.drop_table('relationshipmodel')
     op.drop_table('record')
+    op.drop_index(op.f('ix_linktable_name'), table_name='linktable')
+    op.drop_table('linktable')
     op.drop_index(op.f('ix_enumvaluemodel_value'), table_name='enumvaluemodel')
     op.drop_table('enumvaluemodel')
     op.drop_index(op.f('ix_column_name'), table_name='column')

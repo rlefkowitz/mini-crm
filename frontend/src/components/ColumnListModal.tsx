@@ -28,6 +28,7 @@ interface ColumnListModalProps {
     handleClose: () => void;
     tableName: string;
     tableId: number;
+    isLinkTable?: boolean; // New prop to indicate if it's a link table
 }
 
 interface Column {
@@ -39,9 +40,17 @@ interface Column {
     required: boolean;
     unique: boolean;
     enum_id?: number;
+    reference_table?: any;
+    is_list: boolean;
 }
 
-const ColumnListModal: React.FC<ColumnListModalProps> = ({open, handleClose, tableName, tableId}) => {
+const ColumnListModal: React.FC<ColumnListModalProps> = ({
+    open,
+    handleClose,
+    tableName,
+    tableId,
+    isLinkTable = false,
+}) => {
     const [columns, setColumns] = useState<Column[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
@@ -53,7 +62,8 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({open, handleClose, tab
     const fetchColumns = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`/tables/${tableId}/columns/`);
+            const endpoint = isLinkTable ? `/link_tables/${tableId}/columns/` : `/tables/${tableId}/columns/`;
+            const response = await axios.get(endpoint);
             setColumns(response.data);
             setError('');
         } catch (err: any) {
@@ -121,9 +131,10 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({open, handleClose, tab
     };
 
     const columnsDef: GridColDef[] = [
-        {field: 'name', headerName: 'Name', width: 200, editable: false},
-        {field: 'data_type', headerName: 'Data Type', width: 150, editable: false},
-        {field: 'constraints', headerName: 'Constraints', width: 200, editable: false},
+        {field: 'name', headerName: 'Name', width: 200},
+        {field: 'data_type', headerName: 'Data Type', width: 150},
+        {field: 'is_list', headerName: 'Is List', width: 100, type: 'boolean'},
+        {field: 'constraints', headerName: 'Constraints', width: 200},
         {field: 'required', headerName: 'Required', width: 100, type: 'boolean'},
         {field: 'unique', headerName: 'Unique', width: 100, type: 'boolean'},
         {
@@ -208,21 +219,19 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({open, handleClose, tab
                                 <MenuItem value="integer">Integer</MenuItem>
                                 <MenuItem value="currency">Currency</MenuItem>
                                 <MenuItem value="enum">Enum</MenuItem>
-                                <MenuItem value="picklist">Picklist</MenuItem>
-                                {/* Add more data types as needed */}
+                                <MenuItem value="reference">Reference</MenuItem>
                             </Select>
                         </FormControl>
-                        {editColumn.data_type === 'enum' && (
-                            <FormControl fullWidth margin="dense">
-                                <InputLabel>Enum</InputLabel>
-                                <Select
-                                    value={editColumn.enum_id || ''}
-                                    label="Enum"
-                                    onChange={e => setEditColumn({...editColumn, enum_id: e.target.value as number})}>
-                                    {/* Fetch and map enums */}
-                                    {/* Assuming enums are fetched globally or passed as props */}
-                                </Select>
-                            </FormControl>
+                        {editColumn.data_type === 'reference' && (
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        checked={editColumn.is_list}
+                                        onChange={e => setEditColumn({...editColumn, is_list: e.target.checked})}
+                                    />
+                                }
+                                label="Allow multiple selections"
+                            />
                         )}
                         <TextField
                             margin="dense"

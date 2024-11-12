@@ -1,16 +1,23 @@
 import json
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.databases.database import get_session
-from app.models import Column, EnumModel, Table
-from app.models.relationship import RelationshipModel
-from app.models.schema import Column, Table
+from app.models import Column, EnumModel, LinkColumn, LinkTable, Table
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.schemas.schema import ColumnCreate, ColumnRead, TableCreate, TableRead
+from app.schemas.schema import (
+    ColumnCreate,
+    ColumnRead,
+    ColumnSchema,
+    LinkColumnSchema,
+    LinkTableSchema,
+    SchemaResponse,
+    TableCreate,
+    TableRead,
+    TableSchema,
+)
 from app.websocket import manager
 
 router = APIRouter()
@@ -33,7 +40,6 @@ def create_table_endpoint(
     try:
         session.commit()
         session.refresh(db_table)
-        # Alembic handles migrations, so no need to call create_table here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Table creation failed") from e
@@ -73,7 +79,6 @@ def delete_table_endpoint(
     session.delete(table)
     try:
         session.commit()
-        # Alembic handles migrations, so no need to call drop_table here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Table deletion failed") from e
@@ -123,17 +128,17 @@ def create_column_endpoint(
         table_id=table_id,
         name=column.name,
         data_type=column.data_type,
+        is_list=column.is_list,
         constraints=constraints_str,
         required=column.required,
         unique=column.unique,
         enum_id=column.enum_id,
-        searchable=column.searchable,  # Handle searchable flag
+        searchable=column.searchable,
     )
     session.add(db_column)
     try:
         session.commit()
         session.refresh(db_column)
-        # Alembic handles migrations, so no need to call add_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column creation failed") from e
@@ -181,7 +186,6 @@ def delete_column_endpoint(
     session.delete(column)
     try:
         session.commit()
-        # Alembic handles migrations, so no need to call drop_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column deletion failed") from e
@@ -224,17 +228,17 @@ def update_column_endpoint(
     # Update fields
     db_column.name = column.name
     db_column.data_type = column.data_type
+    db_column.is_list = column.is_list  # Update is_list flag
     db_column.constraints = constraints_str
     db_column.required = column.required
     db_column.unique = column.unique
     db_column.enum_id = column.enum_id
-    db_column.searchable = column.searchable  # Update searchable flag
+    db_column.searchable = column.searchable
 
     session.add(db_column)
     try:
         session.commit()
         session.refresh(db_column)
-        # Alembic handles migrations, so no need to call update_column here
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Column update failed") from e
@@ -255,138 +259,77 @@ def update_column_endpoint(
     return db_column
 
 
-@router.get("/current_schema/", response_model=dict[str, Any])
-def get_current_schema(session: Session = Depends(get_session)):
-    try:
-        schema = {}
-        tables = session.exec(select(Table)).all()
-        for table in tables:
-            table_info = {
-                "id": table.id,
-                "name": table.name,
-                "columns": [],
-                "relationships_from": [],
-                "relationships_to": [],
-                "records": [],
-            }
+@router.get("/current_schema/", response_model=SchemaResponse)
+def get_current_schema(
+    *,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    # Fetch all tables
+    tables = session.exec(select(Table)).all()
 
-            # Columns
-            for column in table.columns:
-                column_info = {
-                    "id": column.id,
-                    "name": column.name,
-                    "data_type": column.data_type,
-                    "constraints": column.constraints,
-                    "enum_id": column.enum_id,
-                    "required": column.required,
-                    "unique": column.unique,
-                    "searchable": column.searchable,
-                    "created_at": column.created_at.isoformat(),
-                    "updated_at": column.updated_at.isoformat(),
-                }
-                table_info["columns"].append(column_info)
+    # Build the schema dictionary
+    schema = {}
 
-            # Relationships From
-            for rel in table.relationships_from:
-                rel_info = {
-                    "id": rel.id,
-                    "name": rel.name,
-                    "relationship_type": rel.relationship_type.value,
-                    "to_table_id": rel.to_table_id,
-                    "attributes": [
-                        {
-                            "id": attr.id,
-                            "name": attr.name,
-                            "data_type": attr.data_type,
-                            "constraints": attr.constraints,
-                        }
-                        for attr in rel.relationship_attributes
-                    ],
-                    "junctions": [
-                        {
-                            "id": junction.id,
-                            "relationship_id": junction.relationship_id,
-                            "from_record_id": junction.from_record_id,
-                            "to_record_id": junction.to_record_id,
-                            "attributes": junction.attributes,  # Already a dict
-                        }
-                        for junction in rel.junctions
-                    ],
-                }
-                table_info["relationships_from"].append(rel_info)
+    for table in tables:
+        table_columns = session.exec(
+            select(Column).where(Column.table_id == table.id)
+        ).all()
 
-            # Relationships To
-            for rel in table.relationships_to:
-                rel_info = {
-                    "id": rel.id,
-                    "name": rel.name,
-                    "relationship_type": rel.relationship_type.value,
-                    "from_table_id": rel.from_table_id,
-                    "attributes": [
-                        {
-                            "id": attr.id,
-                            "name": attr.name,
-                            "data_type": attr.data_type,
-                            "constraints": attr.constraints,
-                        }
-                        for attr in rel.relationship_attributes
-                    ],
-                    "junctions": [
-                        {
-                            "id": junction.id,
-                            "relationship_id": junction.relationship_id,
-                            "from_record_id": junction.from_record_id,
-                            "to_record_id": junction.to_record_id,
-                            "attributes": junction.attributes,  # Already a dict
-                        }
-                        for junction in rel.junctions
-                    ],
-                }
-                table_info["relationships_to"].append(rel_info)
+        # For each table, get its columns
+        columns = [
+            ColumnSchema(
+                id=column.id,
+                name=column.name,
+                data_type=column.data_type,
+                is_list=column.is_list,
+                constraints=column.constraints,
+                enum_id=column.enum_id,
+                required=column.required,
+                unique=column.unique,
+                searchable=column.searchable,
+                reference_table=None,  # Include reference table info if needed
+            )
+            for column in table_columns
+        ]
 
-            # Records
-            for record in table.records:
-                record_info = {
-                    "id": record.id,
-                    "table_id": record.table_id,
-                    "data": record.data,
-                    "created_at": record.created_at.isoformat(),
-                    "updated_at": record.updated_at.isoformat(),
-                    "from_relationships": [
-                        {
-                            "id": junction.id,
-                            "relationship_id": junction.relationship_id,
-                            "to_record_id": junction.to_record_id,
-                            "attributes": junction.attributes,  # Already a dict
-                        }
-                        for junction in record.from_relationships
-                    ],
-                    "to_relationships": [
-                        {
-                            "id": junction.id,
-                            "relationship_id": junction.relationship_id,
-                            "from_record_id": junction.from_record_id,
-                            "attributes": junction.attributes,  # Already a dict
-                        }
-                        for junction in record.to_relationships
-                    ],
-                }
-                table_info["records"].append(record_info)
+        # Get link tables associated with this table
+        link_tables = session.exec(
+            select(LinkTable).where(
+                (LinkTable.from_table_id == table.id)
+                | (LinkTable.to_table_id == table.id)
+            )
+        ).all()
 
-            schema[table.name] = table_info
+        # For each link table, get its columns
+        link_tables_info = []
+        for lt in link_tables:
+            lt_columns = session.exec(
+                select(LinkColumn).where(LinkColumn.link_table_id == lt.id)
+            ).all()
+            lt_info = LinkTableSchema(
+                id=lt.id,
+                name=lt.name,
+                from_table=lt.from_table.name,
+                to_table=lt.to_table.name,
+                columns=[
+                    LinkColumnSchema(
+                        id=lc.id,
+                        name=lc.name,
+                        data_type=lc.data_type,
+                        is_list=lc.is_list,
+                        constraints=lc.constraints,
+                        enum_id=lc.enum_id,
+                        required=lc.required,
+                        unique=lc.unique,
+                    )
+                    for lc in lt_columns
+                ],
+            )
+            link_tables_info.append(lt_info)
 
-        # Enums
-        enums = session.exec(select(EnumModel)).all()
-        enum_info = {}
-        for enum in enums:
-            enum_info[enum.name] = {
-                "id": enum.id,
-                "name": enum.name,
-                "values": [value.value for value in enum.values],
-                "columns": [column.name for column in enum.columns],
-            }
+        schema[table.name] = TableSchema(
+            id=table.id, columns=columns, link_tables=link_tables_info
+        )
 
-        return {"tables": schema, "enums": enum_info}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return SchemaResponse(schema=schema)

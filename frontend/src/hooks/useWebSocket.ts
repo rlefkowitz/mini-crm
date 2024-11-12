@@ -1,15 +1,23 @@
 import {useEffect} from 'react';
+import {useAuth} from '../contexts/AuthContext';
 
 type MessageHandler = (message: any) => void;
 
 const useWebSocket = (onMessage: MessageHandler) => {
+    const {token} = useAuth();
+
     useEffect(() => {
-        const ws = new WebSocket(process.env.WS_URL || 'ws://localhost:8888/ws');
+        if (!token) {
+            console.error('WebSocket connection failed: No authentication token found.');
+            return;
+        }
+
+        const wsUrl = `${process.env.WS_URL || 'ws://localhost:8888/ws'}?token=${encodeURIComponent(token)}`;
+        const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             console.log('WebSocket connected');
-            // If your backend requires authentication tokens, send them here
-            // ws.send(JSON.stringify({ type: 'authenticate', token: 'your_token' }));
+            // No need to send the token here, as it's included in the URL
         };
 
         ws.onmessage = event => {
@@ -33,8 +41,7 @@ const useWebSocket = (onMessage: MessageHandler) => {
         return () => {
             ws.close();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [token, onMessage]); // Added token and onMessage to the dependency array
 };
 
 export default useWebSocket;

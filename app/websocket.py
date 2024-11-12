@@ -19,12 +19,17 @@ class ConnectionManager:
         print("WebSocket connected")
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
         print("WebSocket disconnected")
 
     async def broadcast(self, message: str):
         for connection in self.active_connections:
-            await connection.send_text(message)
+            try:
+                await connection.send_text(message)
+            except Exception as e:
+                print(f"Failed to send message to a connection: {e}")
+                self.disconnect(connection)
 
 
 manager = ConnectionManager()

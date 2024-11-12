@@ -4,14 +4,23 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class TableBase(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class ColumnCreate(BaseModel):
     name: str
     data_type: str
+    is_list: bool = False
     constraints: str | None = None
     required: bool = False
     unique: bool = False
-    enum_id: int | None = None  # For enum columns
-    searchable: bool = False  # New field to mark column as searchable
+    enum_id: int | None = None
+    searchable: bool = False
 
 
 class ColumnRead(BaseModel):
@@ -19,6 +28,7 @@ class ColumnRead(BaseModel):
     table_id: int
     name: str
     data_type: str
+    is_list: bool
     constraints: str | None = None
     required: bool
     unique: bool
@@ -54,3 +64,45 @@ class RecordRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ColumnSchema(BaseModel):
+    id: int
+    name: str
+    data_type: str
+    is_list: bool
+    constraints: str | None
+    enum_id: int | None
+    required: bool
+    unique: bool
+    searchable: bool
+    reference_table: str | None = None
+
+
+class LinkColumnSchema(BaseModel):
+    id: int
+    name: str
+    data_type: str
+    is_list: bool
+    constraints: str | None
+    enum_id: int | None
+    required: bool
+    unique: bool
+
+
+class LinkTableSchema(BaseModel):
+    id: int
+    name: str
+    from_table: str
+    to_table: str
+    columns: list[LinkColumnSchema]
+
+
+class TableSchema(BaseModel):
+    id: int
+    columns: list[ColumnSchema]
+    link_tables: list[LinkTableSchema]
+
+
+class SchemaResponse(BaseModel):
+    schema: dict[str, TableSchema]

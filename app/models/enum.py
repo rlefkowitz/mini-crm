@@ -1,8 +1,11 @@
+# models/enum.py
+
 from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
+    from .link import LinkColumn
     from .schema import Column
 
 
@@ -23,3 +26,6 @@ class EnumModel(SQLModel, table=True):
     )
 
     columns: list["Column"] = Relationship(back_populates="enum")
+
+    # Relationship to LinkColumn model
+    link_columns: list["LinkColumn"] = Relationship(back_populates="enum")

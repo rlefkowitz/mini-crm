@@ -106,6 +106,7 @@ try:
         app = FastAPI(lifespan=lifespan)
 
     app.include_router(router)
+    app.include_router(websocket_router)
 
     if envs.get_env() in envs.HOSTED_ENVS:
         app.mount(
@@ -113,8 +114,6 @@ try:
             StaticFiles(directory="static", html=True),
             name="Mini CRM",
         )
-
-    app.include_router(websocket_router)
 
     app.add_middleware(SessionMiddleware, secret_key=AUTH_SECRET)
     app.add_middleware(

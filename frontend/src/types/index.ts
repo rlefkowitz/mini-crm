@@ -1,5 +1,3 @@
-// src/types/index.ts
-
 // =======================
 // Authentication Types
 // =======================

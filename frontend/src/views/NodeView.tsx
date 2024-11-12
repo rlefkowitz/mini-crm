@@ -1,10 +1,9 @@
 import React, {useEffect, useState} from 'react';
 import ReactFlow, {Node, Edge, Background, Controls, MiniMap, MarkerType, isNode, isEdge} from 'react-flow-renderer';
 import axios from '../utils/axiosConfig';
-import {RelationshipRead} from '../types';
-import useSchema from '../hooks/useSchema';
 import {Typography} from '@mui/material';
 import dagre from 'dagre';
+import useSchema from '../hooks/useSchema';
 
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -37,45 +36,31 @@ const getLayoutedElements = (elements: (Node | Edge)[], direction = 'LR') => {
     });
 };
 
-const getEdgeStyle = (relationshipType: string) => {
-    switch (relationshipType) {
-        case 'one_to_one':
-            return {stroke: '#f6ab6c'};
-        case 'one_to_many':
-            return {stroke: '#8884d8'};
-        case 'many_to_many':
-            return {stroke: '#82ca9d', strokeDasharray: '5,5'};
-        default:
-            return {};
-    }
-};
-
 const NodeView: React.FC = () => {
-    const {schema, isLoading: loading} = useSchema();
-    const [relationships, setRelationships] = useState<RelationshipRead[]>([]);
+    const {schema} = useSchema();
+    const [linkTables, setLinkTables] = useState<any[]>([]);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [edges, setEdges] = useState<Edge[]>([]);
 
-    const fetchRelationships = async () => {
+    const fetchLinkTables = async () => {
         try {
-            const response = await axios.get(`/relationships/`);
-            setRelationships(response.data);
+            const response = await axios.get(`/link_tables/`);
+            setLinkTables(response.data);
         } catch (error) {
-            console.error('Error fetching relationships:', error);
+            console.error('Error fetching link tables:', error);
         }
     };
 
     useEffect(() => {
-        fetchRelationships();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [schema]);
+        fetchLinkTables();
+    }, []);
 
     useEffect(() => {
-        if (!loading) {
+        if (schema) {
             buildGraph();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [relationships, schema, loading]);
+    }, [schema, linkTables]);
 
     const buildGraph = () => {
         const nodes: Node[] = [];
@@ -86,23 +71,42 @@ const NodeView: React.FC = () => {
             nodes.push({
                 id: tableName,
                 data: {label: tableName},
-                position: {x: 0, y: 0}, // Will be set by layout
+                position: {x: 0, y: 0},
                 type: 'default',
             });
         });
 
-        // Create edges for each relationship
-        relationships.forEach(rel => {
+        // Create nodes for link tables
+        linkTables.forEach(linkTable => {
+            nodes.push({
+                id: linkTable.name,
+                data: {label: linkTable.name},
+                position: {x: 0, y: 0},
+                type: 'default',
+                style: {border: '2px solid #ff6f00'},
+            });
+
+            // Edges from link table to connected tables
             edges.push({
-                id: `e${rel.from_table}-${rel.to_table}-${rel.id}`,
-                source: rel.from_table,
-                target: rel.to_table,
-                animated: rel.relationship_type === 'many_to_many', // Animate only many_to_many for visibility
-                label: rel.name,
+                id: `e${linkTable.name}-${linkTable.from_table.name}`,
+                source: linkTable.name,
+                target: linkTable.from_table.name,
+                label: 'Link',
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
                 },
-                style: getEdgeStyle(rel.relationship_type),
+                style: {stroke: '#ff6f00'},
+            });
+
+            edges.push({
+                id: `e${linkTable.name}-${linkTable.to_table.name}`,
+                source: linkTable.name,
+                target: linkTable.to_table.name,
+                label: 'Link',
+                markerEnd: {
+                    type: MarkerType.ArrowClosed,
+                },
+                style: {stroke: '#ff6f00'},
             });
         });
 
@@ -116,12 +120,12 @@ const NodeView: React.FC = () => {
         setEdges(layoutedEdges);
     };
 
-    if (loading) return <Typography>Loading schema...</Typography>;
+    if (!schema) return <Typography>Loading schema...</Typography>;
 
     return (
         <div>
             <Typography variant="h4" gutterBottom>
-                Database Relationships Visualization
+                Database Visualization
             </Typography>
             <div style={{height: '800px', border: '1px solid #ddd', marginTop: '1rem'}}>
                 <ReactFlow
@@ -134,12 +138,10 @@ const NodeView: React.FC = () => {
                     <Controls />
                     <MiniMap
                         nodeColor={node => {
-                            switch (node.type) {
-                                case 'default':
-                                    return '#00bfff';
-                                default:
-                                    return '#eee';
+                            if (linkTables.some(lt => lt.name === node.id)) {
+                                return '#ff6f00';
                             }
+                            return '#00bfff';
                         }}
                     />
                 </ReactFlow>

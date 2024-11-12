@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import axios from '../utils/axiosConfig';
-import EnumManagement from './EnumManagement'; // New component for managing enums
+import EnumManagement from './EnumManagement';
 
 interface AddColumnDialogProps {
     open: boolean;
@@ -37,18 +37,24 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
     const [unique, setUnique] = useState<boolean>(false);
     const [enumId, setEnumId] = useState<number | null>(null);
     const [error, setError] = useState<string>('');
-    const [openEnumManagement, setOpenEnumManagement] = useState<boolean>(false);
     const [showCreateEnum, setShowCreateEnum] = useState<boolean>(false);
+    const [referenceTableId, setReferenceTableId] = useState<number | null>(null);
+    const [isList, setIsList] = useState<boolean>(false);
 
-    // Fetch enums using React Query
-    const {
-        data: enums,
-        isLoading: isEnumsLoading,
-        error: enumsError,
-    } = useQuery({
+    // Fetch enums
+    const {data: enums} = useQuery({
         queryKey: ['enums'],
         queryFn: async () => {
             const response = await axios.get(`/enums/`);
+            return response.data;
+        },
+    });
+
+    // Fetch tables for reference fields
+    const {data: tables} = useQuery({
+        queryKey: ['tables'],
+        queryFn: async () => {
+            const response = await axios.get(`/tables/`);
             return response.data;
         },
     });
@@ -76,6 +82,11 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
             return;
         }
 
+        if (dataType === 'reference' && !referenceTableId) {
+            setError('Please select a table to reference.');
+            return;
+        }
+
         mutation.mutate({
             name,
             data_type: dataType,
@@ -83,19 +94,9 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
             required,
             unique,
             enum_id: enumId || undefined,
+            reference_table_id: referenceTableId || undefined,
+            is_list: isList,
         });
-    };
-
-    const handleOpenEnumManagement = () => {
-        setOpenEnumManagement(true);
-    };
-
-    const handleCloseEnumManagement = () => {
-        setOpenEnumManagement(false);
-    };
-
-    const handleEnumCreated = () => {
-        queryClient.invalidateQueries({queryKey: ['enums']});
     };
 
     return (
@@ -124,7 +125,7 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                                 <MenuItem value="integer">Integer</MenuItem>
                                 <MenuItem value="currency">Currency</MenuItem>
                                 <MenuItem value="enum">Enum</MenuItem>
-                                <MenuItem value="picklist">Picklist</MenuItem>
+                                <MenuItem value="reference">Reference</MenuItem>
                                 {/* Add more data types as needed */}
                             </Select>
                         </FormControl>
@@ -134,7 +135,7 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                                 <Select
                                     value={enumId || ''}
                                     label="Enum"
-                                    onChange={e => setEnumId(e.target.value as number)}>
+                                    onChange={e => setEnumId(Number(e.target.value))}>
                                     {enums &&
                                         enums.map((enumItem: any) => (
                                             <MenuItem key={enumItem.id} value={enumItem.id}>
@@ -148,6 +149,28 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                                     style={{marginTop: '0.5rem'}}>
                                     Create New Enum
                                 </Button>
+                            </FormControl>
+                        )}
+                        {dataType === 'reference' && (
+                            <FormControl fullWidth margin="dense">
+                                <InputLabel>Reference Table</InputLabel>
+                                <Select
+                                    value={referenceTableId || ''}
+                                    label="Reference Table"
+                                    onChange={e => setReferenceTableId(Number(e.target.value))}>
+                                    {tables &&
+                                        tables
+                                            .filter((table: any) => table.id !== tableId)
+                                            .map((table: any) => (
+                                                <MenuItem key={table.id} value={table.id}>
+                                                    {table.name}
+                                                </MenuItem>
+                                            ))}
+                                </Select>
+                                <FormControlLabel
+                                    control={<Checkbox checked={isList} onChange={e => setIsList(e.target.checked)} />}
+                                    label="Allow multiple selections"
+                                />
                             </FormControl>
                         )}
                         <TextField
@@ -191,7 +214,7 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                 <DialogContent>
                     <EnumManagement
                         onEnumCreated={() => {
-                            handleEnumCreated();
+                            queryClient.invalidateQueries({queryKey: ['enums']});
                             setShowCreateEnum(false);
                         }}
                     />

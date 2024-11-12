@@ -8,8 +8,6 @@ from sqlmodel import Session, select
 from app.databases.database import get_session
 from app.models.enum import EnumModel
 from app.models.record import Record
-from app.models.relationship import RelationshipModel
-from app.models.relationship_junction import RelationshipJunctionModel
 from app.models.schema import Column, Table
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -41,22 +39,47 @@ def validate_record_data(table: Table, data: dict[str, Any], session: Session):
             continue
 
         col = column_dict[key]
-        # Type Validation
-        if col.data_type.lower() == "integer":
-            if not isinstance(value, int):
-                errors.append(f"Field '{key}' must be an integer.")
-        elif col.data_type.lower() == "currency":
-            if not isinstance(value, (int, float)):
-                errors.append(f"Field '{key}' must be a number.")
-        elif col.data_type.lower() in ["string", "enum", "picklist"]:
-            if not isinstance(value, str):
-                errors.append(f"Field '{key}' must be a string.")
-        else:
-            # Add more data type validations as needed
-            pass
+        expected_type = col.data_type.lower()
+        is_list = col.is_list
 
-        # Unique Constraint
-        if col.unique:
+        # If is_list is True, value must be a list
+        if is_list:
+            if not isinstance(value, list):
+                errors.append(f"Field '{key}' must be a list.")
+                continue
+            values = value
+        else:
+            values = [value]
+
+        for val in values:
+            # Type Validation
+            if expected_type == "integer":
+                if not isinstance(val, int):
+                    errors.append(f"Field '{key}' must be an integer.")
+            elif expected_type == "currency":
+                if not isinstance(val, (int, float)):
+                    errors.append(f"Field '{key}' must be a number.")
+            elif expected_type in ["string", "enum", "picklist"]:
+                if not isinstance(val, str):
+                    errors.append(f"Field '{key}' must be a string.")
+            else:
+                # Add more data type validations as needed
+                pass
+
+            # Enum Validation
+            if expected_type == "enum" and col.enum_id:
+                enum = session.get(EnumModel, col.enum_id)
+                if not enum:
+                    errors.append(f"Enum for column '{key}' not found.")
+                    continue
+                allowed_values = {v.value for v in enum.values}
+                if val not in allowed_values:
+                    errors.append(
+                        f"Field '{key}' has invalid enum value: '{val}'. Allowed values: {allowed_values}"
+                    )
+
+        # Unique Constraint (Note: Handling unique constraints on lists is complex)
+        if col.unique and not is_list:
             existing_record = session.exec(
                 select(Record).where(
                     Record.table_id == table.id, Record.data[key] == value
@@ -66,18 +89,8 @@ def validate_record_data(table: Table, data: dict[str, Any], session: Session):
                 errors.append(
                     f"Field '{key}' must be unique. Value '{value}' already exists."
                 )
-
-        # Enum Validation
-        if col.data_type.lower() == "enum" and col.enum_id:
-            enum = session.get(EnumModel, col.enum_id)
-            if not enum:
-                errors.append(f"Enum for column '{key}' not found.")
-                continue
-            allowed_values = {v.value for v in enum.values}
-            if value not in allowed_values:
-                errors.append(
-                    f"Field '{key}' has invalid enum value: '{value}'. Allowed values: {allowed_values}"
-                )
+        elif col.unique and is_list:
+            errors.append(f"Unique constraint on list field '{key}' is not supported.")
 
     if errors:
         raise HTTPException(status_code=400, detail=errors)
@@ -106,110 +119,6 @@ def create_record(
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=400, detail="Record creation failed") from e
-
-    # Handle Relationships
-    relationships = session.exec(
-        select(RelationshipModel).where(RelationshipModel.from_table_id == table.id)
-    ).all()
-    for rel in relationships:
-        related_data = record.data.get(rel.name)
-        if related_data:
-            if rel.relationship_type == "many_to_many":
-                # related_data should be a list of dictionaries with 'to_record_id' and any attributes
-                if not isinstance(related_data, list):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a list of related records.",
-                    )
-                for item in related_data:
-                    to_record_id = item.get("to_record_id")
-                    attributes = {k: v for k, v in item.items() if k != "to_record_id"}
-                    # Validate that the to_record exists
-                    to_record = session.get(Record, to_record_id)
-                    if not to_record or to_record.table_id != rel.to_table_id:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                        )
-                    # Create RelationshipJunctionModel
-                    junction = RelationshipJunctionModel(
-                        relationship_id=rel.id,
-                        from_record_id=db_record.id,
-                        to_record_id=to_record_id,
-                        attributes=attributes,
-                    )
-                    session.add(junction)
-            elif rel.relationship_type == "one_to_many":
-                # related_data should be a list of dictionaries with 'to_record_id' and any attributes
-                if not isinstance(related_data, list):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a list of related records.",
-                    )
-                for item in related_data:
-                    to_record_id = item.get("to_record_id")
-                    attributes = {k: v for k, v in item.items() if k != "to_record_id"}
-                    # Validate that the to_record exists
-                    to_record = session.get(Record, to_record_id)
-                    if not to_record or to_record.table_id != rel.to_table_id:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                        )
-                    # Create RelationshipJunctionModel
-                    junction = RelationshipJunctionModel(
-                        relationship_id=rel.id,
-                        from_record_id=db_record.id,
-                        to_record_id=to_record_id,
-                        attributes=attributes,
-                    )
-                    session.add(junction)
-            elif rel.relationship_type == "one_to_one":
-                # related_data should be a single dictionary with 'to_record_id' and any attributes
-                if not isinstance(related_data, dict):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a single related record.",
-                    )
-                to_record_id = related_data.get("to_record_id")
-                attributes = {
-                    k: v for k, v in related_data.items() if k != "to_record_id"
-                }
-                # Validate that the to_record exists
-                to_record = session.get(Record, to_record_id)
-                if not to_record or to_record.table_id != rel.to_table_id:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                    )
-                # Check if a relationship already exists
-                existing_junction = session.exec(
-                    select(RelationshipJunctionModel).where(
-                        RelationshipJunctionModel.relationship_id == rel.id,
-                        RelationshipJunctionModel.from_record_id == db_record.id,
-                    )
-                ).first()
-                if existing_junction:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"One-to-one relationship '{rel.name}' already exists for this record.",
-                    )
-                # Create RelationshipJunctionModel
-                junction = RelationshipJunctionModel(
-                    relationship_id=rel.id,
-                    from_record_id=db_record.id,
-                    to_record_id=to_record_id,
-                    attributes=attributes,
-                )
-                session.add(junction)
-
-    try:
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(
-            status_code=400, detail="Record creation with relationships failed"
-        ) from e
 
     # Index in Elasticsearch if any searchable fields
     columns = session.exec(select(Column).where(Column.table_id == table.id)).all()
@@ -281,125 +190,6 @@ def update_record(
         session.rollback()
         raise HTTPException(status_code=400, detail="Record update failed") from e
 
-    # Handle Relationships
-    relationships = session.exec(
-        select(RelationshipModel).where(RelationshipModel.from_table_id == table.id)
-    ).all()
-    for rel in relationships:
-        related_data = record.data.get(rel.name)
-        if related_data is not None:
-            if rel.relationship_type == "many_to_many":
-                # Clear existing relationships
-                session.exec(
-                    select(RelationshipJunctionModel).where(
-                        RelationshipJunctionModel.relationship_id == rel.id,
-                        RelationshipJunctionModel.from_record_id == db_record.id,
-                    )
-                ).delete(synchronize_session=False)
-                # related_data should be a list of dictionaries with 'to_record_id' and any attributes
-                if not isinstance(related_data, list):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a list of related records.",
-                    )
-                for item in related_data:
-                    to_record_id = item.get("to_record_id")
-                    attributes = {k: v for k, v in item.items() if k != "to_record_id"}
-                    # Validate that the to_record exists
-                    to_record = session.get(Record, to_record_id)
-                    if not to_record or to_record.table_id != rel.to_table_id:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                        )
-                    # Create RelationshipJunctionModel
-                    junction = RelationshipJunctionModel(
-                        relationship_id=rel.id,
-                        from_record_id=db_record.id,
-                        to_record_id=to_record_id,
-                        attributes=attributes,
-                    )
-                    session.add(junction)
-            elif rel.relationship_type == "one_to_many":
-                # Clear existing relationships
-                session.exec(
-                    select(RelationshipJunctionModel).where(
-                        RelationshipJunctionModel.relationship_id == rel.id,
-                        RelationshipJunctionModel.from_record_id == db_record.id,
-                    )
-                ).delete(synchronize_session=False)
-                # related_data should be a list of dictionaries with 'to_record_id' and any attributes
-                if not isinstance(related_data, list):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a list of related records.",
-                    )
-                for item in related_data:
-                    to_record_id = item.get("to_record_id")
-                    attributes = {k: v for k, v in item.items() if k != "to_record_id"}
-                    # Validate that the to_record exists
-                    to_record = session.get(Record, to_record_id)
-                    if not to_record or to_record.table_id != rel.to_table_id:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                        )
-                    # Create RelationshipJunctionModel
-                    junction = RelationshipJunctionModel(
-                        relationship_id=rel.id,
-                        from_record_id=db_record.id,
-                        to_record_id=to_record_id,
-                        attributes=attributes,
-                    )
-                    session.add(junction)
-            elif rel.relationship_type == "one_to_one":
-                # related_data should be a single dictionary with 'to_record_id' and any attributes
-                if not isinstance(related_data, dict):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Relationship '{rel.name}' expects a single related record.",
-                    )
-                to_record_id = related_data.get("to_record_id")
-                attributes = {
-                    k: v for k, v in related_data.items() if k != "to_record_id"
-                }
-                # Validate that the to_record exists
-                to_record = session.get(Record, to_record_id)
-                if not to_record or to_record.table_id != rel.to_table_id:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Related record with id {to_record_id} does not exist in table '{rel.to_table_id}'.",
-                    )
-                # Check if a relationship already exists
-                existing_junction = session.exec(
-                    select(RelationshipJunctionModel).where(
-                        RelationshipJunctionModel.relationship_id == rel.id,
-                        RelationshipJunctionModel.from_record_id == db_record.id,
-                    )
-                ).first()
-                if existing_junction:
-                    # Update existing junction
-                    existing_junction.to_record_id = to_record_id
-                    existing_junction.attributes = attributes
-                    session.add(existing_junction)
-                else:
-                    # Create new junction
-                    junction = RelationshipJunctionModel(
-                        relationship_id=rel.id,
-                        from_record_id=db_record.id,
-                        to_record_id=to_record_id,
-                        attributes=attributes,
-                    )
-                    session.add(junction)
-
-    try:
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(
-            status_code=400, detail="Record update with relationships failed"
-        ) from e
-
     # Re-index in Elasticsearch if any searchable fields are updated
     columns = session.exec(select(Column).where(Column.table_id == table.id)).all()
     searchable_fields = [col.name for col in columns if col.searchable]
@@ -447,23 +237,6 @@ def delete_record(
         session.rollback()
         raise HTTPException(status_code=400, detail="Record deletion failed") from e
 
-    # Remove related relationship junctions
-    rjm = session.exec(
-        select(RelationshipJunctionModel).where(
-            RelationshipJunctionModel.from_record_id == db_record.id
-        )
-    ).first()
-    if rjm:
-        session.delete(rjm)
-    rjm = session.exec(
-        select(RelationshipJunctionModel).where(
-            RelationshipJunctionModel.to_record_id == db_record.id
-        )
-    )
-    if rjm:
-        session.delete(rjm)
-    session.commit()
-
     # Remove from Elasticsearch if indexed
     background_tasks.add_task(remove_record_from_index, db_record)
 
@@ -497,7 +270,7 @@ def search_records(
     columns = session.exec(
         select(Column).where(Column.table_id == table.id, Column.searchable == True)
     ).all()
-    searchable_fields = [col.name for col in columns]
+    searchable_fields = [f"data.{col.name}" for col in columns]
     if not searchable_fields:
         raise HTTPException(
             status_code=400, detail="No searchable fields defined for this table"
@@ -511,7 +284,12 @@ def search_records(
         es_resp = es_client.search(
             index=index_name,
             body={
-                "query": {"multi_match": {"query": query, "fields": searchable_fields}}
+                "query": {
+                    "multi_match": {
+                        "query": query,
+                        "fields": searchable_fields,
+                    }
+                }
             },
         )
     except Exception as e:
