@@ -1,4 +1,3 @@
-// src/components/LinkTableManagement.tsx
 import React, {useState, useEffect} from 'react';
 import {
     Typography,
@@ -24,15 +23,23 @@ import axios from '../utils/axiosConfig';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import ColumnListModal from './ColumnListModal';
 
+interface LinkTable {
+    id: number;
+    name: string;
+    from_table: any;
+    to_table: any;
+    columns: any[]; // Added columns property
+}
+
 const LinkTableManagement: React.FC = () => {
     const queryClient = useQueryClient();
     const [openCreateDialog, setOpenCreateDialog] = useState<boolean>(false);
-    const [linkTables, setLinkTables] = useState<any[]>([]);
+    const [linkTables, setLinkTables] = useState<LinkTable[]>([]);
     const [fromTableId, setFromTableId] = useState<number | null>(null);
     const [toTableId, setToTableId] = useState<number | null>(null);
     const [linkTableName, setLinkTableName] = useState<string>('');
     const [error, setError] = useState<string>('');
-    const [selectedLinkTable, setSelectedLinkTable] = useState<any>(null);
+    const [selectedLinkTable, setSelectedLinkTable] = useState<LinkTable | null>(null);
     const [openColumnList, setOpenColumnList] = useState<boolean>(false);
 
     const {data: tables} = useQuery({
@@ -46,7 +53,6 @@ const LinkTableManagement: React.FC = () => {
     const fetchLinkTables = async () => {
         try {
             const response = await axios.get(`/link_tables/`);
-            console.log(response.data);
             setLinkTables(response.data);
         } catch (error) {
             console.error('Error fetching link tables:', error);
@@ -93,7 +99,7 @@ const LinkTableManagement: React.FC = () => {
         }
     };
 
-    const handleOpenColumnList = (linkTable: any) => {
+    const handleOpenColumnList = (linkTable: LinkTable) => {
         setSelectedLinkTable(linkTable);
         setOpenColumnList(true);
     };
@@ -129,34 +135,31 @@ const LinkTableManagement: React.FC = () => {
                 </Alert>
             )}
             <List>
-                {linkTables.map(linkTable => {
-                    console.log(linkTable);
-                    return (
-                        <ListItem
-                            key={linkTable.id}
-                            secondaryAction={
-                                <>
-                                    <IconButton
-                                        edge="end"
-                                        aria-label="view-columns"
-                                        onClick={() => handleOpenColumnList(linkTable)}>
-                                        <Visibility />
-                                    </IconButton>
-                                    <IconButton
-                                        edge="end"
-                                        aria-label="delete"
-                                        onClick={() => handleDeleteLinkTable(linkTable.id)}>
-                                        <Delete />
-                                    </IconButton>
-                                </>
-                            }>
-                            <ListItemText
-                                primary={linkTable.name}
-                                secondary={`${linkTable.from_table.name} ↔ ${linkTable.to_table.name}`}
-                            />
-                        </ListItem>
-                    );
-                })}
+                {linkTables.map(linkTable => (
+                    <ListItem
+                        key={linkTable.id}
+                        secondaryAction={
+                            <>
+                                <IconButton
+                                    edge="end"
+                                    aria-label="view-columns"
+                                    onClick={() => handleOpenColumnList(linkTable)}>
+                                    <Visibility />
+                                </IconButton>
+                                <IconButton
+                                    edge="end"
+                                    aria-label="delete"
+                                    onClick={() => handleDeleteLinkTable(linkTable.id)}>
+                                    <Delete />
+                                </IconButton>
+                            </>
+                        }>
+                        <ListItemText
+                            primary={linkTable.name}
+                            secondary={`${linkTable.from_table.name} ↔ ${linkTable.to_table.name}`}
+                        />
+                    </ListItem>
+                ))}
             </List>
 
             {/* Dialog for creating a new link table */}

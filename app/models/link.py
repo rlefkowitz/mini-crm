@@ -17,20 +17,26 @@ class LinkTable(SQLModel, table=True):
     from_table_id: int = Field(foreign_key="table.id")
     to_table_id: int = Field(foreign_key="table.id")
 
-    columns: list["LinkColumn"] = Relationship(back_populates="link_table")
-    records: list["LinkRecord"] = Relationship(back_populates="link_table")
+    columns: list["LinkColumn"] = Relationship(
+        back_populates="link_table",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
+    records: list["LinkRecord"] = Relationship(
+        back_populates="link_table",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
 
     from_table: Optional["Table"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "LinkTable.from_table_id==Table.id",
-            "lazy": "joined",
+            "foreign_keys": "[LinkTable.from_table_id]",
         },
         back_populates="link_tables_from",
     )
     to_table: Optional["Table"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "LinkTable.to_table_id==Table.id",
-            "lazy": "joined",
+            "foreign_keys": "[LinkTable.to_table_id]",
         },
         back_populates="link_tables_to",
     )
@@ -47,8 +53,14 @@ class LinkColumn(SQLModel, table=True):
     required: bool = Field(default=False)
     unique: bool = Field(default=False)
 
-    link_table: Optional["LinkTable"] = Relationship(back_populates="columns")
-    enum: Optional["EnumModel"] = Relationship(back_populates="link_columns")
+    link_table: Optional["LinkTable"] = Relationship(
+        back_populates="columns",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
+    enum: Optional["EnumModel"] = Relationship(
+        back_populates="link_columns",
+        sa_relationship_kwargs={"foreign_keys": "[LinkColumn.enum_id]"},
+    )
 
 
 class LinkRecord(SQLModel, table=True):
@@ -60,7 +72,10 @@ class LinkRecord(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    link_table: Optional["LinkTable"] = Relationship(back_populates="records")
+    link_table: Optional["LinkTable"] = Relationship(
+        back_populates="records",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
     from_record: Optional["Record"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": "[LinkRecord.from_record_id]"}
     )

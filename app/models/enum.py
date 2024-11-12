@@ -1,5 +1,3 @@
-# models/enum.py
-
 from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -19,13 +17,19 @@ class EnumValueModel(SQLModel, table=True):
 
 class EnumModel(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True, nullable=False)
+    name: str = Field(index=True, unique=True)
 
     values: list["EnumValueModel"] = Relationship(
         back_populates="enum", sa_relationship_kwargs={"cascade": "delete"}
     )
 
-    columns: list["Column"] = Relationship(back_populates="enum")
+    columns: list["Column"] = Relationship(
+        back_populates="enum",
+        sa_relationship_kwargs={"foreign_keys": "[Column.enum_id]"},
+    )
 
     # Relationship to LinkColumn model
-    link_columns: list["LinkColumn"] = Relationship(back_populates="enum")
+    link_columns: list["LinkColumn"] = Relationship(
+        back_populates="enum",
+        sa_relationship_kwargs={"foreign_keys": "[LinkColumn.enum_id]"},
+    )

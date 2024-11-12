@@ -25,9 +25,17 @@ interface AddColumnDialogProps {
     tableName: string;
     tableId: number;
     onColumnAdded: () => void;
+    isLinkTable?: boolean;
 }
 
-const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tableName, tableId, onColumnAdded}) => {
+const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
+    open,
+    handleClose,
+    tableName,
+    tableId,
+    onColumnAdded,
+    isLinkTable = false,
+}) => {
     const queryClient = useQueryClient();
 
     const [name, setName] = useState<string>('');
@@ -38,8 +46,9 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
     const [enumId, setEnumId] = useState<number | null>(null);
     const [error, setError] = useState<string>('');
     const [showCreateEnum, setShowCreateEnum] = useState<boolean>(false);
-    const [referenceTableId, setReferenceTableId] = useState<number | null>(null);
+    const [referenceLinkTableId, setReferenceLinkTableId] = useState<number | null>(null);
     const [isList, setIsList] = useState<boolean>(false);
+    const [searchable, setSearchable] = useState<boolean>(false);
 
     // Fetch enums
     const {data: enums} = useQuery({
@@ -50,17 +59,20 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
         },
     });
 
-    // Fetch tables for reference fields
-    const {data: tables} = useQuery({
-        queryKey: ['tables'],
+    // Fetch link tables
+    const {data: linkTables} = useQuery({
+        queryKey: ['linkTables'],
         queryFn: async () => {
-            const response = await axios.get(`/tables/`);
+            const response = await axios.get(`/link_tables/`);
             return response.data;
         },
     });
 
     const mutation = useMutation({
-        mutationFn: (newColumn: any) => axios.post(`/tables/${tableId}/columns/`, newColumn),
+        mutationFn: (newColumn: any) => {
+            const endpoint = isLinkTable ? `/link_tables/${tableId}/columns/` : `/tables/${tableId}/columns/`;
+            return axios.post(endpoint, newColumn);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({queryKey: ['columns', tableId]});
             onColumnAdded();
@@ -82,21 +94,24 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
             return;
         }
 
-        if (dataType === 'reference' && !referenceTableId) {
-            setError('Please select a table to reference.');
+        if (dataType === 'reference' && !referenceLinkTableId) {
+            setError('Please select a link table to reference.');
             return;
         }
 
-        mutation.mutate({
+        const newColumn = {
             name,
             data_type: dataType,
             constraints: constraints || undefined,
             required,
             unique,
             enum_id: enumId || undefined,
-            reference_table_id: referenceTableId || undefined,
+            reference_link_table_id: referenceLinkTableId || undefined,
             is_list: isList,
-        });
+            searchable,
+        };
+
+        mutation.mutate(newColumn);
     };
 
     return (
@@ -153,17 +168,21 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                         )}
                         {dataType === 'reference' && (
                             <FormControl fullWidth margin="dense">
-                                <InputLabel>Reference Table</InputLabel>
+                                <InputLabel>Reference Link Table</InputLabel>
                                 <Select
-                                    value={referenceTableId || ''}
-                                    label="Reference Table"
-                                    onChange={e => setReferenceTableId(Number(e.target.value))}>
-                                    {tables &&
-                                        tables
-                                            .filter((table: any) => table.id !== tableId)
-                                            .map((table: any) => (
-                                                <MenuItem key={table.id} value={table.id}>
-                                                    {table.name}
+                                    value={referenceLinkTableId || ''}
+                                    label="Reference Link Table"
+                                    onChange={e => setReferenceLinkTableId(Number(e.target.value))}>
+                                    {linkTables &&
+                                        linkTables
+                                            .filter(
+                                                (linkTable: any) =>
+                                                    linkTable.from_table.id === tableId ||
+                                                    linkTable.to_table.id === tableId
+                                            )
+                                            .map((linkTable: any) => (
+                                                <MenuItem key={linkTable.id} value={linkTable.id}>
+                                                    {linkTable.name}
                                                 </MenuItem>
                                             ))}
                                 </Select>
@@ -190,6 +209,10 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({open, handleClose, tab
                         <FormControlLabel
                             control={<Checkbox checked={unique} onChange={e => setUnique(e.target.checked)} />}
                             label="Unique"
+                        />
+                        <FormControlLabel
+                            control={<Checkbox checked={searchable} onChange={e => setSearchable(e.target.checked)} />}
+                            label="Searchable"
                         />
                         {error && (
                             <Alert severity="error" sx={{mt: 2}}>

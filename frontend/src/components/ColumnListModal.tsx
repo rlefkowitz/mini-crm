@@ -28,7 +28,7 @@ interface ColumnListModalProps {
     handleClose: () => void;
     tableName: string;
     tableId: number;
-    isLinkTable?: boolean; // New prop to indicate if it's a link table
+    isLinkTable?: boolean;
 }
 
 interface Column {
@@ -42,6 +42,7 @@ interface Column {
     enum_id?: number;
     reference_table?: any;
     is_list: boolean;
+    searchable: boolean; // Added searchable property
 }
 
 const ColumnListModal: React.FC<ColumnListModalProps> = ({
@@ -77,7 +78,6 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
         if (open) {
             fetchColumns();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const handleOpenAddColumn = () => {
@@ -103,7 +103,8 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
     const handleUpdateColumn = async () => {
         if (!editColumn) return;
         try {
-            await axios.put(`/columns/${editColumn.id}/`, editColumn);
+            const endpoint = isLinkTable ? `/link_columns/${editColumn.id}/` : `/columns/${editColumn.id}/`;
+            await axios.put(endpoint, editColumn);
             setEditColumn(null);
             fetchColumns();
         } catch (err: any) {
@@ -119,7 +120,8 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
     const confirmDeleteColumn = async () => {
         if (columnToDelete) {
             try {
-                await axios.delete(`/columns/${columnToDelete.id}`);
+                const endpoint = isLinkTable ? `/link_columns/${columnToDelete.id}` : `/columns/${columnToDelete.id}`;
+                await axios.delete(endpoint);
                 fetchColumns();
                 setColumnToDelete(null);
                 setConfirmDelete(false);
@@ -131,12 +133,13 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
     };
 
     const columnsDef: GridColDef[] = [
-        {field: 'name', headerName: 'Name', width: 200},
-        {field: 'data_type', headerName: 'Data Type', width: 150},
-        {field: 'is_list', headerName: 'Is List', width: 100, type: 'boolean'},
-        {field: 'constraints', headerName: 'Constraints', width: 200},
-        {field: 'required', headerName: 'Required', width: 100, type: 'boolean'},
-        {field: 'unique', headerName: 'Unique', width: 100, type: 'boolean'},
+        {field: 'name', headerName: 'Name', width: 150},
+        {field: 'data_type', headerName: 'Data Type', width: 100},
+        {field: 'is_list', headerName: 'Is List', width: 80, type: 'boolean'},
+        {field: 'searchable', headerName: 'Searchable', width: 100, type: 'boolean'},
+        {field: 'constraints', headerName: 'Constraints', width: 150},
+        {field: 'required', headerName: 'Required', width: 80, type: 'boolean'},
+        {field: 'unique', headerName: 'Unique', width: 80, type: 'boolean'},
         {
             field: 'actions',
             type: 'actions',
@@ -193,6 +196,7 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
                 tableName={tableName}
                 tableId={tableId}
                 onColumnAdded={handleColumnAdded}
+                isLinkTable={isLinkTable}
             />
 
             {/* Edit Column Dialog */}
@@ -260,6 +264,15 @@ const ColumnListModal: React.FC<ColumnListModalProps> = ({
                                 />
                             }
                             label="Unique"
+                        />
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    checked={editColumn.searchable}
+                                    onChange={e => setEditColumn({...editColumn, searchable: e.target.checked})}
+                                />
+                            }
+                            label="Searchable"
                         />
                     </DialogContent>
                     <DialogActions>

@@ -14,7 +14,10 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    company: Optional["Company"] = Relationship(back_populates="users")
+    company: Optional["Company"] = Relationship(
+        back_populates="users",
+        sa_relationship_kwargs={"foreign_keys": "[User.company_id]"},
+    )
 
 
 class Company(SQLModel, table=True):
@@ -25,4 +28,7 @@ class Company(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    users: list[User] = Relationship(back_populates="company")
+    users: list[User] = Relationship(
+        back_populates="company",
+        sa_relationship_kwargs={"foreign_keys": "[User.company_id]"},
+    )

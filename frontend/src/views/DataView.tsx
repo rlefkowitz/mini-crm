@@ -188,7 +188,6 @@ const DataView: React.FC = () => {
             <Grid item xs={12} md={4}>
                 {selectedTable && records.length > 0 && (
                     <ObjectSummary tableName={selectedTable} recordId={records[0].id} />
-                    // You can enhance this by allowing users to select specific records
                 )}
             </Grid>
         </Grid>

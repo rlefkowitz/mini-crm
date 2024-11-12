@@ -1,3 +1,5 @@
+// types/index.ts
+
 // =======================
 // Authentication Types
 // =======================
@@ -62,7 +64,7 @@ export interface EnumRead {
 /**
  * Supported data types for columns.
  */
-export type DataType = 'string' | 'integer' | 'currency' | 'enum' | 'picklist';
+export type DataType = 'string' | 'integer' | 'currency' | 'enum' | 'reference' | 'picklist';
 
 /**
  * Represents a column within a table.
@@ -75,6 +77,9 @@ export interface Column {
     required: boolean;
     unique: boolean;
     enum_id?: number; // References Enum if data_type is 'enum'
+    reference_link_table_id?: number; // References LinkTable if data_type is 'reference'
+    is_list: boolean;
+    searchable: boolean;
 }
 
 // =======================
@@ -91,53 +96,18 @@ export interface TableRead {
 }
 
 // =======================
-// Relationship Types
+// Link Table Types
 // =======================
 
 /**
- * Supported relationship types between tables.
+ * Represents a link table in the CRM schema.
  */
-export type RelationshipType = 'one_to_one' | 'one_to_many' | 'many_to_many';
-
-/**
- * Payload for creating a relationship attribute.
- */
-export interface RelationshipAttributeCreate {
-    name: string;
-    data_type: DataType;
-    constraints?: string;
-}
-
-/**
- * Represents a relationship attribute retrieved from the backend.
- */
-export interface RelationshipAttributeRead {
-    name: string;
-    data_type: DataType;
-    constraints?: string;
-}
-
-/**
- * Payload for creating a new relationship.
- */
-export interface RelationshipCreate {
-    name: string;
-    from_table: string;
-    to_table: string;
-    relationship_type: RelationshipType;
-    attributes?: RelationshipAttributeCreate[];
-}
-
-/**
- * Represents a relationship retrieved from the backend, including its attributes.
- */
-export interface RelationshipRead {
+export interface LinkTable {
     id: number;
     name: string;
     from_table: string;
     to_table: string;
-    relationship_type: RelationshipType;
-    attributes: RelationshipAttributeRead[];
+    columns: Column[];
 }
 
 // =======================
@@ -149,7 +119,7 @@ export interface RelationshipRead {
  */
 export interface Record {
     id: number;
-    [key: string]: any; // Dynamic fields corresponding to table columns and relationships
+    data: {[key: string]: any}; // Data field containing dynamic fields
 }
 
 // =======================
@@ -157,15 +127,13 @@ export interface Record {
 // =======================
 
 /**
- * Represents the entire CRM schema, mapping each table to its columns and relationships.
+ * Represents the entire CRM schema, mapping each table to its columns and link tables.
  */
 export interface Schema {
     [tableName: string]: {
+        id: number;
         columns: Column[];
-        relationships: {
-            from: RelationshipRead[]; // Relationships originating from this table
-            to: RelationshipRead[]; // Relationships pointing to this table
-        };
+        link_tables: LinkTable[];
     };
 }
 

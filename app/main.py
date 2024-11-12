@@ -46,8 +46,14 @@ def init_loggers():
     )
     logging.getLogger().setLevel(log_level)
 
+    # Info messages from uvicorn are duplicated in the console, so ignore them
+    # also they're ugly (why is app startup an error?)
     uvicorn_logger = logging.getLogger("uvicorn.error")
     uvicorn_logger.setLevel(logging.WARNING)
+
+    logging.info(
+        f"Initialized root logger with level {logging.getLevelName(logging.root.level)}"
+    )
 
 
 def init_db():

@@ -16,4 +16,7 @@ class Record(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    table: Optional["Table"] = Relationship(back_populates="records")
+    table: Optional["Table"] = Relationship(
+        back_populates="records",
+        sa_relationship_kwargs={"foreign_keys": "[Record.table_id]"},
+    )

@@ -20,6 +20,7 @@ class ColumnCreate(BaseModel):
     required: bool = False
     unique: bool = False
     enum_id: int | None = None
+    reference_link_table_id: int | None = None  # Added field
     searchable: bool = False
 
 
@@ -33,6 +34,7 @@ class ColumnRead(BaseModel):
     required: bool
     unique: bool
     enum_id: int | None = None
+    reference_link_table_id: int | None = None  # Added field
     searchable: bool
 
     class Config:
@@ -76,6 +78,7 @@ class ColumnSchema(BaseModel):
     required: bool
     unique: bool
     searchable: bool
+    reference_link_table_id: int | None  # Added field
     reference_table: str | None = None
 
 
@@ -105,4 +108,4 @@ class TableSchema(BaseModel):
 
 
 class SchemaResponse(BaseModel):
-    schema: dict[str, TableSchema]
+    data_schema: dict[str, TableSchema]

@@ -7,7 +7,7 @@ import {useAuth} from '../contexts/AuthContext';
 interface Schema {
     [tableName: string]: {
         columns: Column[];
-        link_tables: any[]; // Adjust this type based on your actual schema
+        link_tables: any[];
     };
 }
 
@@ -23,7 +23,7 @@ const useSchema = () => {
         queryKey: ['schema'],
         queryFn: async () => {
             const response = await axios.get(`/current_schema/`);
-            return response.data.schema; // Adjusted to return the schema object
+            return response.data.data_schema;
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
         enabled: isAuthenticated,

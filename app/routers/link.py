@@ -88,6 +88,7 @@ def read_link_tables(
         select(LinkTable).options(
             selectinload(LinkTable.from_table),
             selectinload(LinkTable.to_table),
+            selectinload(LinkTable.columns),
         )
     ).all()
     return link_tables
@@ -105,6 +106,7 @@ def read_link_table(
         .options(
             selectinload(LinkTable.from_table),
             selectinload(LinkTable.to_table),
+            selectinload(LinkTable.columns),
         )
     ).first()
     if not link_table:

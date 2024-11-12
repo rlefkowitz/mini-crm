@@ -20,6 +20,10 @@ class Column(SQLModel, table=True):
     is_list: bool = Field(default=False)
     constraints: str | None = Field(default=None)
     enum_id: int | None = Field(default=None, foreign_key="enummodel.id")
+    reference_table_id: int | None = Field(default=None, foreign_key="table.id")
+    reference_link_table_id: int | None = Field(
+        default=None, foreign_key="linktable.id"
+    )  # Added field
     required: bool = Field(default=False)
     unique: bool = Field(default=False)
     searchable: bool = Field(default=False)
@@ -27,8 +31,27 @@ class Column(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    table: Optional["Table"] = Relationship(back_populates="columns")
-    enum: Optional["EnumModel"] = Relationship(back_populates="columns")
+    # Specify foreign_keys to resolve ambiguity
+    table: Optional["Table"] = Relationship(
+        back_populates="columns",
+        sa_relationship_kwargs={"foreign_keys": "[Column.table_id]"},
+    )
+    enum: Optional["EnumModel"] = Relationship(
+        back_populates="columns",
+        sa_relationship_kwargs={"foreign_keys": "[Column.enum_id]"},
+    )
+    reference_table: Optional["Table"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Column.reference_table_id==Table.id",
+            "foreign_keys": "[Column.reference_table_id]",
+        }
+    )
+    reference_link_table: Optional["LinkTable"] = Relationship(  # Added relationship
+        sa_relationship_kwargs={
+            "primaryjoin": "Column.reference_link_table_id==LinkTable.id",
+            "foreign_keys": "[Column.reference_link_table_id]",
+        }
+    )
 
 
 class Table(SQLModel, table=True):
@@ -37,8 +60,21 @@ class Table(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    columns: list["Column"] = Relationship(back_populates="table")
-    records: list["Record"] = Relationship(back_populates="table")
+    # Specify foreign_keys to resolve ambiguity
+    columns: list["Column"] = Relationship(
+        back_populates="table",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Column.table_id]",
+            "lazy": "selectin",
+        },
+    )
+    records: list["Record"] = Relationship(
+        back_populates="table",
+        sa_relationship_kwargs={
+            "foreign_keys": "[Record.table_id]",
+            "lazy": "selectin",
+        },
+    )
 
     # Add reciprocal relationships for LinkTable
     link_tables_from: list["LinkTable"] = Relationship(

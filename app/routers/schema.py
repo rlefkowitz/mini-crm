@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.databases.database import get_session
@@ -18,6 +19,7 @@ from app.schemas.schema import (
     TableRead,
     TableSchema,
 )
+from app.utils.elasticsearch import index_existing_records
 from app.websocket import manager
 
 router = APIRouter()
@@ -134,6 +136,7 @@ def create_column_endpoint(
         unique=column.unique,
         enum_id=column.enum_id,
         searchable=column.searchable,
+        reference_link_table_id=column.reference_link_table_id,  # Added field
     )
     session.add(db_column)
     try:
@@ -155,6 +158,10 @@ def create_column_endpoint(
             }
         ),
     )
+    if db_column.searchable:
+        # Index existing records
+        background_tasks.add_task(index_existing_records, table_id, db_column.name)
+
     return db_column
 
 
@@ -167,7 +174,18 @@ def read_columns(
     table = session.get(Table, table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    columns = session.exec(select(Column).where(Column.table_id == table_id)).all()
+    columns = (
+        session.exec(
+            select(Column)
+            .options(
+                selectinload(Column.reference_table),
+                selectinload(Column.reference_link_table),
+            )
+            .where(Column.table_id == table_id)
+        )
+        .unique()
+        .all()
+    )
     return columns
 
 
@@ -225,6 +243,8 @@ def update_column_endpoint(
         constraints.append(column.constraints)
     constraints_str = " ".join(constraints) if constraints else None
 
+    previous_searchable = db_column.searchable
+
     # Update fields
     db_column.name = column.name
     db_column.data_type = column.data_type
@@ -256,6 +276,11 @@ def update_column_endpoint(
         ),
     )
 
+    if not previous_searchable and db_column.searchable:
+        background_tasks.add_task(
+            index_existing_records, db_column.table_id, db_column.name
+        )
+
     return db_column
 
 
@@ -272,13 +297,28 @@ def get_current_schema(
     schema = {}
 
     for table in tables:
-        table_columns = session.exec(
-            select(Column).where(Column.table_id == table.id)
-        ).all()
+        # Eagerly load relationships using selectinload
+        table_columns = (
+            session.exec(
+                select(Column)
+                .options(
+                    selectinload(Column.reference_table),
+                    selectinload(Column.reference_link_table),
+                )
+                .where(Column.table_id == table.id)
+            )
+            .unique()
+            .all()
+        )
 
         # For each table, get its columns
-        columns = [
-            ColumnSchema(
+        columns = []
+        for column in table_columns:
+            reference_table_name = None
+            if column.data_type == "reference" and column.reference_table:
+                reference_table_name = column.reference_table.name
+
+            column_schema = ColumnSchema(
                 id=column.id,
                 name=column.name,
                 data_type=column.data_type,
@@ -288,43 +328,44 @@ def get_current_schema(
                 required=column.required,
                 unique=column.unique,
                 searchable=column.searchable,
-                reference_table=None,  # Include reference table info if needed
+                reference_link_table_id=column.reference_link_table_id,
+                reference_table=reference_table_name,
             )
-            for column in table_columns
-        ]
+            columns.append(column_schema)
 
         # Get link tables associated with this table
-        link_tables = session.exec(
-            select(LinkTable).where(
+        link_tables_stmt = (
+            select(LinkTable)
+            .options(selectinload(LinkTable.columns))
+            .where(
                 (LinkTable.from_table_id == table.id)
                 | (LinkTable.to_table_id == table.id)
             )
-        ).all()
+        )
+        link_tables = session.exec(link_tables_stmt).unique().all()
 
         # For each link table, get its columns
         link_tables_info = []
         for lt in link_tables:
-            lt_columns = session.exec(
-                select(LinkColumn).where(LinkColumn.link_table_id == lt.id)
-            ).all()
+            lt_columns = [
+                LinkColumnSchema(
+                    id=lc.id,
+                    name=lc.name,
+                    data_type=lc.data_type,
+                    is_list=lc.is_list,
+                    constraints=lc.constraints,
+                    enum_id=lc.enum_id,
+                    required=lc.required,
+                    unique=lc.unique,
+                )
+                for lc in lt.columns
+            ]
             lt_info = LinkTableSchema(
                 id=lt.id,
                 name=lt.name,
                 from_table=lt.from_table.name,
                 to_table=lt.to_table.name,
-                columns=[
-                    LinkColumnSchema(
-                        id=lc.id,
-                        name=lc.name,
-                        data_type=lc.data_type,
-                        is_list=lc.is_list,
-                        constraints=lc.constraints,
-                        enum_id=lc.enum_id,
-                        required=lc.required,
-                        unique=lc.unique,
-                    )
-                    for lc in lt_columns
-                ],
+                columns=lt_columns,
             )
             link_tables_info.append(lt_info)
 
@@ -332,4 +373,4 @@ def get_current_schema(
             id=table.id, columns=columns, link_tables=link_tables_info
         )
 
-    return SchemaResponse(schema=schema)
+    return SchemaResponse(data_schema=schema)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Optional
 
 from pydantic import BaseModel
 
@@ -9,7 +9,7 @@ from .schema import TableBase  # Import TableBase schema
 class LinkColumnCreate(BaseModel):
     name: str
     data_type: str
-    is_list: bool = False  # New field
+    is_list: bool = False
     constraints: str | None = None
     required: bool = False
     unique: bool = False
@@ -44,6 +44,7 @@ class LinkTableRead(BaseModel):
     to_table_id: int
     from_table: TableBase  # Include from_table details
     to_table: TableBase  # Include to_table details
+    columns: List[LinkColumnRead] = []  # Include columns
 
     class Config:
         from_attributes = True

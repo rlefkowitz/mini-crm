@@ -17,7 +17,11 @@ from utilities import envs
 log = logging.getLogger(__name__)
 
 # Initialize Elasticsearch client
-es = Elasticsearch([environ.get("ELASTICSEARCH_URL", "http://localhost:9200")])
+es_host = environ.get("ELASTIC_HOST", "localhost")
+es_port = environ.get("ELASTIC_PORT", "9200")
+es_url = f"http://{es_host}:{es_port}"
+es = Elasticsearch([es_url])
+log.info(f"Elasticsearch client initialized with URL: {es_url}")
 
 
 def _get_engine(env: str):
