@@ -1,50 +1,48 @@
 import React from 'react';
 import {Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Typography} from '@mui/material';
+import axios from '../utils/axiosConfig';
+import {TableRead} from '../types';
 import {useFormik} from 'formik';
 import * as Yup from 'yup';
-import axios from '../utils/axiosConfig';
 
-interface AddTableDialogProps {
+interface TableSettingsDialogProps {
     open: boolean;
     handleClose: () => void;
-    onTableAdded: () => void;
+    table: TableRead;
+    onSettingsSaved: () => void;
 }
 
-const AddTableDialog: React.FC<AddTableDialogProps> = ({open, handleClose, onTableAdded}) => {
+const TableSettingsDialog: React.FC<TableSettingsDialogProps> = ({open, handleClose, table, onSettingsSaved}) => {
     const [error, setError] = React.useState<string>('');
 
     const formik = useFormik({
         initialValues: {
-            name: '',
-            display_format: '',
-            display_format_secondary: '',
+            display_format: table.display_format || '',
+            display_format_secondary: table.display_format_secondary || '',
         },
         validationSchema: Yup.object({
-            name: Yup.string().required('Table name is required'),
-            display_format: Yup.string(), // Made optional
+            display_format: Yup.string(),
             display_format_secondary: Yup.string(),
         }),
-        onSubmit: async (values, {resetForm, setSubmitting, setErrors}) => {
+        onSubmit: async values => {
             try {
-                await axios.post('/tables/', {
-                    name: values.name.trim(),
+                await axios.put(`/tables/${table.id}/`, {
+                    name: table.name, // Assuming the name is required for PUT
                     display_format: values.display_format.trim() || null,
                     display_format_secondary: values.display_format_secondary.trim() || null,
                 });
-                resetForm();
-                onTableAdded();
+                onSettingsSaved();
                 handleClose();
             } catch (error: any) {
-                console.error('Error adding table:', error);
-                setError(error.response?.data?.detail || 'Failed to add table.');
-                setSubmitting(false);
+                console.error('Error updating table settings:', error);
+                setError(error.response?.data?.detail || 'Failed to update table settings.');
             }
         },
     });
 
     return (
         <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Add New Table</DialogTitle>
+            <DialogTitle>Table Settings - {table.name}</DialogTitle>
             <DialogContent>
                 {error && (
                     <Typography color="error" variant="body2" gutterBottom>
@@ -54,20 +52,6 @@ const AddTableDialog: React.FC<AddTableDialogProps> = ({open, handleClose, onTab
                 <form onSubmit={formik.handleSubmit}>
                     <TextField
                         autoFocus
-                        margin="dense"
-                        label="Table Name"
-                        type="text"
-                        fullWidth
-                        variant="outlined"
-                        name="name"
-                        value={formik.values.name}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        error={formik.touched.name && Boolean(formik.errors.name)}
-                        helperText={formik.touched.name && formik.errors.name}
-                        required
-                    />
-                    <TextField
                         margin="dense"
                         label="Display Format"
                         type="text"
@@ -99,8 +83,8 @@ const AddTableDialog: React.FC<AddTableDialogProps> = ({open, handleClose, onTab
                         <Button onClick={handleClose} color="secondary">
                             Cancel
                         </Button>
-                        <Button type="submit" variant="contained" color="primary" disabled={formik.isSubmitting}>
-                            Add Table
+                        <Button type="submit" variant="contained" color="primary">
+                            Save
                         </Button>
                     </DialogActions>
                 </form>
@@ -109,4 +93,4 @@ const AddTableDialog: React.FC<AddTableDialogProps> = ({open, handleClose, onTab
     );
 };
 
-export default AddTableDialog;
+export default TableSettingsDialog;

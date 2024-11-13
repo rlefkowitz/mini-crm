@@ -1,6 +1,3 @@
-from datetime import datetime
-from typing import Any
-
 from pydantic import BaseModel
 
 
@@ -20,7 +17,8 @@ class ColumnCreate(BaseModel):
     required: bool = False
     unique: bool = False
     enum_id: int | None = None
-    reference_link_table_id: int | None = None  # Added field
+    reference_table_id: int | None = None
+    reference_link_table_id: int | None = None
     searchable: bool = False
 
 
@@ -43,26 +41,15 @@ class ColumnRead(BaseModel):
 
 class TableCreate(BaseModel):
     name: str
+    display_format: str | None = None
+    display_format_secondary: str | None = None
 
 
 class TableRead(BaseModel):
     id: int
     name: str
-
-    class Config:
-        from_attributes = True
-
-
-class RecordCreate(BaseModel):
-    data: dict[str, Any]
-
-
-class RecordRead(BaseModel):
-    id: int
-    table_id: int
-    data: dict[str, Any]
-    created_at: datetime
-    updated_at: datetime
+    display_format: str | None = None
+    display_format_secondary: str | None = None
 
     class Config:
         from_attributes = True
@@ -105,6 +92,8 @@ class TableSchema(BaseModel):
     id: int
     columns: list[ColumnSchema]
     link_tables: list[LinkTableSchema]
+    display_format: str | None = None
+    display_format_secondary: str | None = None
 
 
 class SchemaResponse(BaseModel):

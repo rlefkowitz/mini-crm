@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List
 
 from pydantic import BaseModel
 
-from .schema import TableBase  # Import TableBase schema
+from .schema import TableBase
 
 
 class LinkColumnCreate(BaseModel):
@@ -13,7 +13,7 @@ class LinkColumnCreate(BaseModel):
     constraints: str | None = None
     required: bool = False
     unique: bool = False
-    enum_id: int | None = None  # For enum columns
+    enum_id: int | None = None
 
 
 class LinkColumnRead(BaseModel):
@@ -42,9 +42,9 @@ class LinkTableRead(BaseModel):
     name: str
     from_table_id: int
     to_table_id: int
-    from_table: TableBase  # Include from_table details
-    to_table: TableBase  # Include to_table details
-    columns: List[LinkColumnRead] = []  # Include columns
+    from_table: TableBase
+    to_table: TableBase
+    columns: List[LinkColumnRead] = []
 
     class Config:
         from_attributes = True

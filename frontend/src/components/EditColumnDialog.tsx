@@ -1,6 +1,5 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
-    Typography,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -15,100 +14,87 @@ import {
     Checkbox,
     FormControlLabel,
     Box,
+    Typography,
 } from '@mui/material';
-import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
+import {useMutation, useQueryClient} from '@tanstack/react-query';
 import axios from '../utils/axiosConfig';
 import EnumManagement from './EnumManagement';
 import useSchema from '../hooks/useSchema';
-import {Enum} from '../types';
+import {ColumnSchema, Enum} from '../types';
 
-interface AddColumnDialogProps {
+interface EditColumnDialogProps {
     open: boolean;
     handleClose: () => void;
     tableName: string;
     tableId: number;
-    onColumnAdded: () => void;
-    isLinkTable?: boolean; // Added this line
+    column: ColumnSchema; // The column to edit
+    isLinkTable?: boolean; // Indicates if editing a link table column
+    onColumnUpdated: () => void; // Callback after successful update
 }
 
-const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
+const EditColumnDialog: React.FC<EditColumnDialogProps> = ({
     open,
     handleClose,
     tableName,
     tableId,
-    onColumnAdded,
-    isLinkTable = false, // Default to false
+    column,
+    isLinkTable = false,
+    onColumnUpdated,
 }) => {
     const queryClient = useQueryClient();
-    const [name, setName] = useState<string>('');
-    const [dataType, setDataType] = useState<string>('string');
-    const [constraints, setConstraints] = useState<string>('');
-    const [required, setRequired] = useState<boolean>(false);
-    const [unique, setUnique] = useState<boolean>(false);
-    const [enumId, setEnumId] = useState<number | null>(null);
+    const [name, setName] = useState<string>(column.name);
+    const [dataType, setDataType] = useState<string>(column.data_type);
+    const [constraints, setConstraints] = useState<string>(column.constraints || '');
+    const [required, setRequired] = useState<boolean>(column.required || false);
+    const [unique, setUnique] = useState<boolean>(column.unique || false);
+    const [enumId, setEnumId] = useState<number | null>(column.enum_id || null);
     const [error, setError] = useState<string>('');
     const [showCreateEnum, setShowCreateEnum] = useState<boolean>(false);
-    const [referenceLinkTableId, setReferenceLinkTableId] = useState<number | null>(null);
-    const [isList, setIsList] = useState<boolean>(false); // Allows any data type to be a list
-    const [searchable, setSearchable] = useState<boolean>(false);
+    const [referenceLinkTableId, setReferenceLinkTableId] = useState<number | null>(
+        column.reference_link_table_id || null
+    );
+    const [isList, setIsList] = useState<boolean>(column.is_list || false);
+    const [searchable, setSearchable] = useState<boolean>(column.searchable || false);
 
     const {enums: allEnums} = useSchema();
 
-    // Fetch link tables only if this is a link table or if the data type is 'reference'
-    const {data: linkTables, isLoading: linkTablesLoading} = useQuery({
-        queryKey: ['linkTables', tableId],
-        queryFn: async () => {
-            if (isLinkTable) {
-                const response = await axios.get(`/link_tables/`);
-                return response.data;
-            } else if (dataType === 'reference') {
+    // Fetch link tables only if dataType is 'reference'
+    const {data: linkTables, isLoading: linkTablesLoading} = useMutation({
+        mutationFn: async () => {
+            if (isLinkTable || dataType === 'reference') {
                 const response = await axios.get(`/link_tables/`);
                 return response.data;
             } else {
                 return [];
             }
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        enabled: open && (isLinkTable || dataType === 'reference'), // Fetch only when needed
+        enabled: open && (isLinkTable || dataType === 'reference'),
+        onError: error => {
+            console.error('Error fetching link tables:', error);
+        },
     });
 
     const mutation = useMutation({
-        mutationFn: (newColumn: any) => {
+        mutationFn: (updatedColumn: any) => {
             let endpoint = '';
             if (isLinkTable) {
-                endpoint = `/link_tables/${tableId}/columns/`; // Endpoint for link table columns
-            } else if (dataType === 'reference') {
-                endpoint = `/tables/${tableId}/columns/`; // Endpoint for reference columns in main tables
+                endpoint = `/link_tables/${tableId}/columns/${column.id}/`; // Endpoint for link table columns
             } else {
-                endpoint = `/tables/${tableId}/columns/`; // General endpoint for main table columns
+                endpoint = `/tables/${tableId}/columns/${column.id}/`; // Endpoint for main table columns
             }
-            return axios.post(endpoint, newColumn);
+            return axios.put(endpoint, updatedColumn); // Using PUT for full update; use PATCH if partial
         },
         onSuccess: () => {
             queryClient.invalidateQueries({queryKey: ['columns', tableId]});
-            onColumnAdded();
+            onColumnUpdated();
             handleClose();
-            resetForm();
         },
         onError: (error: any) => {
-            setError(error.response?.data?.detail || 'Failed to add column.');
+            setError(error.response?.data?.detail || 'Failed to update column.');
         },
     });
 
-    const resetForm = () => {
-        setName('');
-        setDataType('string');
-        setConstraints('');
-        setRequired(false);
-        setUnique(false);
-        setEnumId(null);
-        setError('');
-        setReferenceLinkTableId(null);
-        setIsList(false);
-        setSearchable(false);
-    };
-
-    const handleAddColumn = () => {
+    const handleUpdateColumn = () => {
         if (!name.trim()) {
             setError('Column name is required.');
             return;
@@ -124,7 +110,7 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
             return;
         }
 
-        const newColumn: any = {
+        const updatedColumn: any = {
             name: name.trim(),
             data_type: dataType,
             constraints: constraints.trim() || undefined,
@@ -136,13 +122,25 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
             searchable,
         };
 
-        mutation.mutate(newColumn);
+        mutation.mutate(updatedColumn);
     };
+
+    useEffect(() => {
+        setName(column.name);
+        setDataType(column.data_type);
+        setConstraints(column.constraints || '');
+        setRequired(column.required || false);
+        setUnique(column.unique || false);
+        setEnumId(column.enum_id || null);
+        setReferenceLinkTableId(column.reference_link_table_id || null);
+        setIsList(column.is_list || false);
+        setSearchable(column.searchable || false);
+    }, [column]);
 
     return (
         <>
             <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-                <DialogTitle>Add New Column to "{tableName}"</DialogTitle>
+                <DialogTitle>Edit Column "{column.name}"</DialogTitle>
                 <DialogContent>
                     <Box component="form" noValidate autoComplete="off">
                         <TextField
@@ -265,13 +263,13 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
                     <Button
                         onClick={() => {
                             handleClose();
-                            resetForm();
+                            // Optionally reset form or state here
                         }}
                         color="secondary">
                         Cancel
                     </Button>
-                    <Button onClick={handleAddColumn} variant="contained" color="primary">
-                        Add Column
+                    <Button onClick={handleUpdateColumn} variant="contained" color="primary">
+                        Save Changes
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -297,4 +295,4 @@ const AddColumnDialog: React.FC<AddColumnDialogProps> = ({
     );
 };
 
-export default AddColumnDialog;
+export default EditColumnDialog;

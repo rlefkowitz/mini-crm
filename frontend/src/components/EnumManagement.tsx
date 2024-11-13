@@ -18,6 +18,7 @@ import {
 import {Add, Delete} from '@mui/icons-material';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import axios from '../utils/axiosConfig';
+import Chip from '@mui/material/Chip';
 
 interface EnumValue {
     id: number;
@@ -30,7 +31,11 @@ interface Enum {
     values: EnumValue[];
 }
 
-const EnumManagement: React.FC = () => {
+interface EnumManagementProps {
+    onEnumCreated?: () => void;
+}
+
+const EnumManagement: React.FC<EnumManagementProps> = ({onEnumCreated}) => {
     const queryClient = useQueryClient();
 
     const [openCreateDialog, setOpenCreateDialog] = useState<boolean>(false);
@@ -54,6 +59,7 @@ const EnumManagement: React.FC = () => {
         mutationFn: (newEnum: any) => axios.post(`/enums/`, newEnum),
         onSuccess: () => {
             queryClient.invalidateQueries({queryKey: ['enums']});
+            onEnumCreated && onEnumCreated();
             handleCloseCreateDialog();
         },
         onError: (error: any) => {
@@ -105,12 +111,6 @@ const EnumManagement: React.FC = () => {
         createEnumMutation.mutate(payload);
     };
 
-    const handleDeleteEnum = (enumId: number) => {
-        if (window.confirm('Are you sure you want to delete this enum?')) {
-            deleteEnumMutation.mutate(enumId);
-        }
-    };
-
     const handleOpenCreateDialog = () => {
         setOpenCreateDialog(true);
     };
@@ -120,6 +120,12 @@ const EnumManagement: React.FC = () => {
         setEnumName('');
         setEnumValues(['']);
         setError('');
+    };
+
+    const handleDeleteEnum = (enumId: number) => {
+        if (window.confirm('Are you sure you want to delete this enum?')) {
+            deleteEnumMutation.mutate(enumId);
+        }
     };
 
     return (
@@ -153,8 +159,21 @@ const EnumManagement: React.FC = () => {
                                 </IconButton>
                             }>
                             <ListItemText
-                                primary={enumItem.name}
-                                secondary={enumItem.values.map(val => val.value).join(', ')}
+                                primary={
+                                    <Box display="flex" alignItems="center">
+                                        <Typography variant="subtitle1">{enumItem.name}</Typography>
+                                        <Box ml={2}>
+                                            {enumItem.values.map(val => (
+                                                <Chip
+                                                    key={val.id}
+                                                    label={val.value}
+                                                    size="small"
+                                                    style={{margin: '2px'}}
+                                                />
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                }
                             />
                         </ListItem>
                     ))
@@ -176,6 +195,7 @@ const EnumManagement: React.FC = () => {
                         variant="outlined"
                         value={enumName}
                         onChange={e => setEnumName(e.target.value)}
+                        required
                     />
                     <Typography variant="subtitle1" sx={{mt: 2}}>
                         Enum Values
@@ -189,6 +209,7 @@ const EnumManagement: React.FC = () => {
                                     fullWidth
                                     value={val}
                                     onChange={e => handleChangeEnumValue(index, e.target.value)}
+                                    required
                                 />
                             </Grid>
                             <Grid item xs={2}>
@@ -198,6 +219,11 @@ const EnumManagement: React.FC = () => {
                                     disabled={enumValues.length === 1}>
                                     <Delete />
                                 </IconButton>
+                                {index === enumValues.length - 1 && (
+                                    <IconButton color="primary" onClick={handleAddEnumValue}>
+                                        <Add />
+                                    </IconButton>
+                                )}
                             </Grid>
                         </Grid>
                     ))}

@@ -8,14 +8,13 @@ from .link import (
     LinkTableCreate,
     LinkTableRead,
 )
+from .record import RecordCreate, RecordRead
 from .schema import (
     ColumnCreate,
     ColumnRead,
     ColumnSchema,
     LinkColumnSchema,
     LinkTableSchema,
-    RecordCreate,
-    RecordRead,
     SchemaResponse,
     TableCreate,
     TableRead,
@@ -43,7 +42,7 @@ __all__ = [
     "Token",
     "UserLogin",
     "UserRegister",
-    "RecordCreate",
+    "record",
     "RecordRead",
     "ColumnSchema",
     "LinkColumnSchema",

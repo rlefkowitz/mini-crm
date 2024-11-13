@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 1619bd854ebb
+Revision ID: 1f2394d21e13
 Revises: 
-Create Date: 2024-11-12 09:11:42.432825
+Create Date: 2024-11-13 04:33:20.100874
 
 """
 from alembic import op
@@ -11,7 +11,7 @@ import sqlmodel
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '1619bd854ebb'
+revision = '1f2394d21e13'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -37,6 +37,8 @@ def upgrade() -> None:
     op.create_table('table',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('display_format', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('display_format_secondary', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')

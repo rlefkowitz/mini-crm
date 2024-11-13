@@ -6,31 +6,29 @@ import {
     MenuItem,
     FormControl,
     InputLabel,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableRow,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
     Typography,
-    Paper,
     Grid,
 } from '@mui/material';
 import DynamicForm from '../components/DynamicForm';
 import useSchema from '../hooks/useSchema';
-import {TableRead, Record} from '../types';
+import {TableRead, Record, ColumnSchema} from '../types';
 import ObjectSummary from '../components/ObjectSummary';
+import {DataGrid, GridColDef, GridRenderCellParams} from '@mui/x-data-grid';
+import Chip from '@mui/material/Chip';
 
 const DataView: React.FC = () => {
-    const {schema, isLoading: loading} = useSchema();
+    const {schema, enums} = useSchema();
     const [tables, setTables] = useState<TableRead[]>([]);
     const [selectedTable, setSelectedTable] = useState<string>('');
-    const [records, setRecords] = useState<Record[]>([]);
+    const [records, setRecords] = useState<any[]>([]);
     const [openDialog, setOpenDialog] = useState<boolean>(false);
-    const [editRecord, setEditRecord] = useState<Record | null>(null);
+    const [editRecord, setEditRecord] = useState<any | null>(null); // Holds data fields only
+    const [editRecordId, setEditRecordId] = useState<number | null>(null);
+    const [columns, setColumns] = useState<GridColDef[]>([]);
 
     const fetchTables = async () => {
         try {
@@ -44,7 +42,11 @@ const DataView: React.FC = () => {
     const fetchRecords = async () => {
         try {
             const response = await axios.get(`/records/${selectedTable}/`);
-            setRecords(response.data.map((record: Record) => ({id: record.id, ...record.data})));
+            const flattenedRecords = response.data.map((record: Record) => ({
+                id: record.id,
+                ...record.data,
+            }));
+            setRecords(flattenedRecords);
         } catch (error) {
             console.error('Error fetching records:', error);
         }
@@ -58,22 +60,107 @@ const DataView: React.FC = () => {
     useEffect(() => {
         if (selectedTable) {
             fetchRecords();
+            setupColumns();
+        } else {
+            setColumns([]);
+            setRecords([]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedTable]);
+    }, [selectedTable, schema]);
+
+    const setupColumns = () => {
+        if (schema && selectedTable) {
+            const cols: GridColDef[] = schema[selectedTable].columns
+                .filter((col: ColumnSchema) => col.name !== 'id') // Exclude 'id' field
+                .map((col: ColumnSchema) => ({
+                    headerName: col.name,
+                    field: col.name,
+                    sortable: true,
+                    flex: 1,
+                    renderCell: (params: GridRenderCellParams) => {
+                        const value = params.value;
+
+                        // Handle reference fields
+                        if (col.data_type === 'reference') {
+                            return value?.display_value || value || '';
+                        }
+
+                        // Handle enum lists with chips
+                        if ((col.data_type === 'enum' || col.data_type === 'picklist') && col.is_list) {
+                            if (Array.isArray(value)) {
+                                return (
+                                    <div>
+                                        {value.map((val: string, index: number) => (
+                                            <Chip key={index} label={val} size="small" style={{margin: '2px'}} />
+                                        ))}
+                                    </div>
+                                );
+                            }
+                            return '';
+                        }
+
+                        // Handle other list fields with chips
+                        if (col.is_list) {
+                            if (Array.isArray(value)) {
+                                return (
+                                    <div>
+                                        {value.map((val: any, index: number) => (
+                                            <Chip key={index} label={val} size="small" style={{margin: '2px'}} />
+                                        ))}
+                                    </div>
+                                );
+                            }
+                            return '';
+                        }
+
+                        return value;
+                    },
+                }));
+
+            // Add actions column with increased width
+            cols.push({
+                headerName: 'Actions',
+                field: 'actions',
+                sortable: false,
+                filterable: false,
+                width: 200, // Increased width for better spacing
+                renderCell: (params: GridRenderCellParams) => (
+                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                        <Button variant="outlined" size="small" onClick={() => handleEdit(params.row)}>
+                            Edit
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            color="secondary"
+                            onClick={() => handleDelete(params.row.id)}>
+                            Delete
+                        </Button>
+                    </div>
+                ),
+            });
+
+            setColumns(cols);
+        }
+    };
 
     const handleOpenDialog = () => {
         setEditRecord(null);
+        setEditRecordId(null);
         setOpenDialog(true);
     };
 
     const handleCloseDialog = () => {
         setEditRecord(null);
+        setEditRecordId(null);
         setOpenDialog(false);
     };
 
-    const handleEdit = (record: Record) => {
-        setEditRecord(record);
+    const handleEdit = (record: any) => {
+        // 'record' contains id and data fields
+        const {id, ...data} = record;
+        setEditRecord(data); // Pass only data fields
+        setEditRecordId(id); // Pass the record ID
         setOpenDialog(true);
     };
 
@@ -86,11 +173,9 @@ const DataView: React.FC = () => {
         }
     };
 
-    if (loading) return <Typography>Loading schema...</Typography>;
-
     return (
         <Grid container spacing={2}>
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12}>
                 <Typography variant="h4" gutterBottom>
                     Data Management
                 </Typography>
@@ -112,53 +197,10 @@ const DataView: React.FC = () => {
                         Add New Record
                     </Button>
                 </div>
-                {selectedTable && (
-                    <Paper elevation={3}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>ID</TableCell>
-                                    {schema?.[selectedTable]?.columns.map(col => (
-                                        <TableCell key={col.id}>{col.name}</TableCell>
-                                    ))}
-                                    <TableCell>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {records.map(record => (
-                                    <TableRow key={record.id}>
-                                        <TableCell>{record.id}</TableCell>
-                                        {schema?.[selectedTable]?.columns.map(col => (
-                                            <TableCell key={col.id}>{record[col.name]}</TableCell>
-                                        ))}
-                                        <TableCell>
-                                            <Button
-                                                variant="outlined"
-                                                onClick={() => handleEdit(record)}
-                                                style={{marginRight: '0.5rem'}}>
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                variant="outlined"
-                                                color="secondary"
-                                                onClick={() => handleDelete(record.id)}>
-                                                Delete
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {records.length === 0 && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={(schema?.[selectedTable]?.columns.length || 0) + 2}
-                                            align="center">
-                                            No records found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </Paper>
+                {selectedTable && columns.length > 0 && (
+                    <div style={{height: 600, width: '100%'}}>
+                        <DataGrid rows={records} columns={columns} autoHeight />
+                    </div>
                 )}
 
                 {/* Dialog for adding/editing records */}
@@ -169,8 +211,8 @@ const DataView: React.FC = () => {
                             <DynamicForm
                                 tableName={selectedTable}
                                 mode={editRecord ? 'update' : 'create'}
-                                initialValues={editRecord || undefined}
-                                recordId={editRecord?.id}
+                                initialValues={editRecord ? editRecord : undefined}
+                                recordId={editRecordId}
                                 onSuccess={() => {
                                     fetchRecords();
                                     handleCloseDialog();
@@ -185,9 +227,9 @@ const DataView: React.FC = () => {
                     </DialogActions>
                 </Dialog>
             </Grid>
-            <Grid item xs={12} md={4}>
-                {selectedTable && records.length > 0 && (
-                    <ObjectSummary tableName={selectedTable} recordId={records[0].id} />
+            <Grid item xs={12}>
+                {selectedTable && editRecord && editRecordId && (
+                    <ObjectSummary tableName={selectedTable} recordId={editRecordId} />
                 )}
             </Grid>
         </Grid>

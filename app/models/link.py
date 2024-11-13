@@ -1,5 +1,7 @@
+# models/link.py
+
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from sqlalchemy import Column as SAColumn
 from sqlalchemy.dialects.postgresql import JSONB
@@ -17,11 +19,11 @@ class LinkTable(SQLModel, table=True):
     from_table_id: int = Field(foreign_key="table.id")
     to_table_id: int = Field(foreign_key="table.id")
 
-    columns: list["LinkColumn"] = Relationship(
+    columns: List["LinkColumn"] = Relationship(
         back_populates="link_table",
         sa_relationship_kwargs={"lazy": "selectin"},
     )
-    records: list["LinkRecord"] = Relationship(
+    records: List["LinkRecord"] = Relationship(
         back_populates="link_table",
         sa_relationship_kwargs={"lazy": "selectin"},
     )

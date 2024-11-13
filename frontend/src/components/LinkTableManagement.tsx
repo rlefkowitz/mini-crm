@@ -18,7 +18,8 @@ import {
     Alert,
     Box,
 } from '@mui/material';
-import {Add, Delete, Visibility} from '@mui/icons-material';
+import {Add, Visibility} from '@mui/icons-material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import axios from '../utils/axiosConfig';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import ColumnListModal from './ColumnListModal';
@@ -81,6 +82,17 @@ const LinkTableManagement: React.FC = () => {
             return;
         }
 
+        // Prevent creating a link table between the same tables in both directions
+        const existingLink = linkTables.find(
+            lt =>
+                (lt.from_table.id === fromTableId && lt.to_table.id === toTableId) ||
+                (lt.from_table.id === toTableId && lt.to_table.id === fromTableId)
+        );
+        if (existingLink) {
+            setError('A link table between these tables already exists.');
+            return;
+        }
+
         createLinkTableMutation.mutate({
             name: linkTableName,
             from_table_id: fromTableId,
@@ -91,7 +103,7 @@ const LinkTableManagement: React.FC = () => {
     const handleDeleteLinkTable = async (linkTableId: number) => {
         if (window.confirm('Are you sure you want to delete this link table?')) {
             try {
-                await axios.delete(`/link_tables/${linkTableId}`);
+                await axios.delete(`/link_tables/${linkTableId}/`);
                 fetchLinkTables();
             } catch (error: any) {
                 setError(error.response?.data?.detail || 'Failed to delete link table.');
@@ -115,6 +127,16 @@ const LinkTableManagement: React.FC = () => {
 
     const handleCloseCreateDialog = () => {
         setOpenCreateDialog(false);
+        setFromTableId(null);
+        setToTableId(null);
+        setLinkTableName('');
+        setError('');
+    };
+
+    /**
+     * Resets the create link table form fields.
+     */
+    const resetCreateLinkTableForm = () => {
         setFromTableId(null);
         setToTableId(null);
         setLinkTableName('');
@@ -150,7 +172,7 @@ const LinkTableManagement: React.FC = () => {
                                     edge="end"
                                     aria-label="delete"
                                     onClick={() => handleDeleteLinkTable(linkTable.id)}>
-                                    <Delete />
+                                    <DeleteIcon />
                                 </IconButton>
                             </>
                         }>
@@ -175,8 +197,9 @@ const LinkTableManagement: React.FC = () => {
                         variant="outlined"
                         value={linkTableName}
                         onChange={e => setLinkTableName(e.target.value)}
+                        required
                     />
-                    <FormControl fullWidth margin="dense">
+                    <FormControl fullWidth margin="dense" required>
                         <InputLabel>From Table</InputLabel>
                         <Select
                             value={fromTableId || ''}
@@ -190,7 +213,7 @@ const LinkTableManagement: React.FC = () => {
                                 ))}
                         </Select>
                     </FormControl>
-                    <FormControl fullWidth margin="dense">
+                    <FormControl fullWidth margin="dense" required>
                         <InputLabel>To Table</InputLabel>
                         <Select
                             value={toTableId || ''}
@@ -206,7 +229,12 @@ const LinkTableManagement: React.FC = () => {
                     </FormControl>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseCreateDialog} color="secondary">
+                    <Button
+                        onClick={() => {
+                            handleCloseCreateDialog();
+                            resetCreateLinkTableForm();
+                        }}
+                        color="secondary">
                         Cancel
                     </Button>
                     <Button onClick={handleCreateLinkTable} variant="contained" color="primary">
@@ -222,7 +250,7 @@ const LinkTableManagement: React.FC = () => {
                     handleClose={handleCloseColumnList}
                     tableName={selectedLinkTable.name}
                     tableId={selectedLinkTable.id}
-                    isLinkTable={true}
+                    isLinkTable={true} // Pass isLinkTable as true
                 />
             )}
         </Box>

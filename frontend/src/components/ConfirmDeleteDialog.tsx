@@ -17,19 +17,18 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({
     itemType,
 }) => {
     return (
-        <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-            <DialogTitle>Confirm Deletion</DialogTitle>
+        <Dialog open={open} onClose={handleClose}>
+            <DialogTitle>Confirm Delete</DialogTitle>
             <DialogContent>
                 <Typography>
-                    Are you sure you want to delete the {itemType} "<strong>{itemName}</strong>"? This action cannot be
-                    undone.
+                    Are you sure you want to delete the {itemType} "{itemName}"? This action cannot be undone.
                 </Typography>
             </DialogContent>
             <DialogActions>
-                <Button onClick={handleClose} color="primary">
+                <Button onClick={handleClose} color="secondary">
                     Cancel
                 </Button>
-                <Button onClick={handleConfirm} color="error" variant="contained">
+                <Button onClick={handleConfirm} variant="contained" color="error">
                     Delete
                 </Button>
             </DialogActions>

@@ -23,7 +23,7 @@ class Column(SQLModel, table=True):
     reference_table_id: int | None = Field(default=None, foreign_key="table.id")
     reference_link_table_id: int | None = Field(
         default=None, foreign_key="linktable.id"
-    )  # Added field
+    )
     required: bool = Field(default=False)
     unique: bool = Field(default=False)
     searchable: bool = Field(default=False)
@@ -46,7 +46,7 @@ class Column(SQLModel, table=True):
             "foreign_keys": "[Column.reference_table_id]",
         }
     )
-    reference_link_table: Optional["LinkTable"] = Relationship(  # Added relationship
+    reference_link_table: Optional["LinkTable"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "Column.reference_link_table_id==LinkTable.id",
             "foreign_keys": "[Column.reference_link_table_id]",
@@ -57,6 +57,8 @@ class Column(SQLModel, table=True):
 class Table(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, unique=True)
+    display_format: str | None = Field(default=None)
+    display_format_secondary: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

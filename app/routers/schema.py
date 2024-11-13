@@ -37,7 +37,11 @@ def create_table_endpoint(
         raise HTTPException(
             status_code=400, detail="Table with this name already exists"
         )
-    db_table = Table(name=table.name)
+    db_table = Table(
+        name=table.name,
+        display_format=table.display_format,
+        display_format_secondary=table.display_format_secondary,
+    )
     session.add(db_table)
     try:
         session.commit()
@@ -98,6 +102,43 @@ def delete_table_endpoint(
     return {"ok": True}
 
 
+@router.put("/tables/{table_id}/", response_model=TableRead)
+def update_table_endpoint(
+    table_id: int,
+    table: TableCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    db_table = session.get(Table, table_id)
+    if not db_table:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    db_table.name = table.name
+    db_table.display_format = table.display_format
+    db_table.display_format_secondary = table.display_format_secondary
+
+    session.add(db_table)
+    try:
+        session.commit()
+        session.refresh(db_table)
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=400, detail="Table update failed") from e
+    # Broadcast schema update
+    background_tasks.add_task(
+        manager.broadcast,
+        json.dumps(
+            {
+                "type": "schema_update",
+                "action": "update_table",
+                "table": db_table.name,
+            }
+        ),
+    )
+    return db_table
+
+
 # Column CRUD
 @router.post("/tables/{table_id}/columns/", response_model=ColumnRead)
 def create_column_endpoint(
@@ -126,6 +167,30 @@ def create_column_endpoint(
         constraints.append(column.constraints)
     constraints_str = " ".join(constraints) if constraints else None
 
+    # Handle reference columns
+    reference_table_id = None
+    reference_link_table_id = None
+    if column.data_type == "reference":
+        if column.reference_table_id:
+            reference_table = session.get(Table, column.reference_table_id)
+            if not reference_table:
+                raise HTTPException(status_code=404, detail="Reference table not found")
+            reference_table_id = column.reference_table_id
+        elif column.reference_link_table_id:
+            reference_link_table = session.get(
+                LinkTable, column.reference_link_table_id
+            )
+            if not reference_link_table:
+                raise HTTPException(
+                    status_code=404, detail="Reference link table not found"
+                )
+            reference_link_table_id = column.reference_link_table_id
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Reference table ID or reference link table ID must be set for reference columns.",
+            )
+
     db_column = Column(
         table_id=table_id,
         name=column.name,
@@ -136,7 +201,8 @@ def create_column_endpoint(
         unique=column.unique,
         enum_id=column.enum_id,
         searchable=column.searchable,
-        reference_link_table_id=column.reference_link_table_id,  # Added field
+        reference_table_id=reference_table_id,
+        reference_link_table_id=reference_link_table_id,
     )
     session.add(db_column)
     try:
@@ -370,7 +436,11 @@ def get_current_schema(
             link_tables_info.append(lt_info)
 
         schema[table.name] = TableSchema(
-            id=table.id, columns=columns, link_tables=link_tables_info
+            id=table.id,
+            columns=columns,
+            link_tables=link_tables_info,
+            display_format=table.display_format,
+            display_format_secondary=table.display_format_secondary,
         )
 
     return SchemaResponse(data_schema=schema)
