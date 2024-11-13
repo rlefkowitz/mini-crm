@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from app.databases.database import get_session
-from app.models import Column, EnumModel, LinkColumn, LinkTable, Table
+from app.models import Column, LinkTable, Table
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.schema import (
@@ -114,6 +114,12 @@ def update_table_endpoint(
     if not db_table:
         raise HTTPException(status_code=404, detail="Table not found")
 
+    # Check if display formats are changed
+    display_format_changed = db_table.display_format != table.display_format
+    display_format_secondary_changed = (
+        db_table.display_format_secondary != table.display_format_secondary
+    )
+
     db_table.name = table.name
     db_table.display_format = table.display_format
     db_table.display_format_secondary = table.display_format_secondary
@@ -136,6 +142,11 @@ def update_table_endpoint(
             }
         ),
     )
+
+    # Reindex records if display formats have changed
+    if display_format_changed or display_format_secondary_changed:
+        background_tasks.add_task(index_existing_records, db_table.id)
+
     return db_table
 
 

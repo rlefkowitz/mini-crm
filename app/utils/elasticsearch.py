@@ -17,11 +17,6 @@ def get_index_name(table_name: str) -> str:
     return f"records_{table_name.lower()}"
 
 
-class SafeDict(dict):
-    def __missing__(self, key):
-        return ""
-
-
 class CustomFormatter(string.Formatter):
     def __init__(self, session):
         self.session = session
@@ -47,17 +42,27 @@ def generate_display_value(table: Table, record: Record, session: Session) -> st
     # Resolve references in data
     for col in table.columns:
         if col.data_type == "reference" and col.name in data:
-            ref_record_id = data[col.name]
+            ref_value = data[col.name]
             if col.reference_table_id:
-                ref_record = session.get(Record, ref_record_id)
-                if ref_record:
-                    ref_table = session.get(Table, ref_record.table_id)
-                    if ref_table:
+                if col.is_list:
+                    ref_display_values = []
+                    for ref_id in ref_value:
+                        ref_record = session.get(Record, ref_id)
+                        if ref_record:
+                            ref_table = session.get(Table, ref_record.table_id)
+                            ref_display_value = generate_display_value(
+                                ref_table, ref_record, session
+                            )
+                            ref_display_values.append(ref_display_value)
+                    data[col.name] = ", ".join(ref_display_values)
+                else:
+                    ref_record = session.get(Record, ref_value)
+                    if ref_record:
+                        ref_table = session.get(Table, ref_record.table_id)
                         ref_display_value = generate_display_value(
                             ref_table, ref_record, session
                         )
                         data[col.name] = ref_display_value
-                        data[col.name + "_data"] = ref_record.data
             elif col.reference_link_table_id:
                 # Handle many-to-many relationships via LinkRecord
                 # Fetch all linked records with additional data
@@ -80,7 +85,6 @@ def generate_display_value(table: Table, record: Record, session: Session) -> st
                 data[col.name] = (
                     ", ".join(linked_display_values) if linked_display_values else ""
                 )
-                data[col.name + "_data"] = [lr.data for lr in linked_records]
 
     # Generate display value using the display format
     if table.display_format:
@@ -91,7 +95,7 @@ def generate_display_value(table: Table, record: Record, session: Session) -> st
             log.error(f"KeyError in display_format for table {table.name}: {e}")
             return f"{table.name} item"
     else:
-        return f"{table.name} item"
+        return ""
 
 
 def generate_display_value_secondary(
@@ -101,17 +105,27 @@ def generate_display_value_secondary(
     # Resolve references in data
     for col in table.columns:
         if col.data_type == "reference" and col.name in data:
-            ref_record_id = data[col.name]
+            ref_value = data[col.name]
             if col.reference_table_id:
-                ref_record = session.get(Record, ref_record_id)
-                if ref_record:
-                    ref_table = session.get(Table, ref_record.table_id)
-                    if ref_table:
-                        ref_display_value_secondary = generate_display_value_secondary(
+                if col.is_list:
+                    ref_display_values = []
+                    for ref_id in ref_value:
+                        ref_record = session.get(Record, ref_id)
+                        if ref_record:
+                            ref_table = session.get(Table, ref_record.table_id)
+                            ref_display_value = generate_display_value_secondary(
+                                ref_table, ref_record, session
+                            )
+                            ref_display_values.append(ref_display_value)
+                    data[col.name] = ", ".join(ref_display_values)
+                else:
+                    ref_record = session.get(Record, ref_value)
+                    if ref_record:
+                        ref_table = session.get(Table, ref_record.table_id)
+                        ref_display_value = generate_display_value_secondary(
                             ref_table, ref_record, session
                         )
-                        data[col.name] = ref_display_value_secondary
-                        data[col.name + "_data"] = ref_record.data
+                        data[col.name] = ref_display_value
             elif col.reference_link_table_id:
                 # Handle many-to-many relationships via LinkRecord
                 # Fetch all linked records with additional data
@@ -121,24 +135,19 @@ def generate_display_value_secondary(
                         LinkRecord.from_record_id == record.id,
                     )
                 ).all()
-                linked_display_values_secondary = []
+                linked_display_values = []
                 for lr in linked_records:
                     linked_record = session.get(Record, lr.to_record_id)
                     if linked_record:
                         linked_table = session.get(Table, linked_record.table_id)
                         if linked_table:
-                            linked_display_secondary = generate_display_value_secondary(
+                            linked_display = generate_display_value_secondary(
                                 linked_table, linked_record, session
                             )
-                            linked_display_values_secondary.append(
-                                linked_display_secondary
-                            )
+                            linked_display_values.append(linked_display)
                 data[col.name] = (
-                    ", ".join(linked_display_values_secondary)
-                    if linked_display_values_secondary
-                    else ""
+                    ", ".join(linked_display_values) if linked_display_values else ""
                 )
-                data[col.name + "_data"] = [lr.data for lr in linked_records]
 
     # Generate display value using the display format secondary
     if table.display_format_secondary:
@@ -186,7 +195,7 @@ def create_index_with_mappings(index_name: str):
             log.error(f"Failed to create index '{index_name}': {e}")
 
 
-def index_record(table_name: str, record_id: int, searchable_data: dict[str, Any]):
+def index_record(table_name: str, record_id: int, data: dict[str, Any]):
     index_name = get_index_name(table_name)
     engine = get_engine()
 
@@ -212,7 +221,7 @@ def index_record(table_name: str, record_id: int, searchable_data: dict[str, Any
 
         # Transform keys to lowercase for consistency
         searchable_data_lower = {}
-        for k, v in searchable_data.items():
+        for k, v in data.items():
             if isinstance(v, list):
                 # For lists, join items into a single string
                 searchable_data_lower[k.lower()] = ", ".join(map(str, v))
@@ -252,10 +261,8 @@ def remove_record_from_index(table_name: str, record_id: int):
         log.error(f"Failed to remove record {record_id}: {e}")
 
 
-def index_existing_records(table_id: int, column_name: str):
-    log.info(
-        f"Starting index_existing_records for table_id={table_id}, column_name='{column_name}'."
-    )
+def index_existing_records(table_id: int):
+    log.info(f"Starting index_existing_records for table_id={table_id}.")
     engine = get_engine()
     with Session(engine) as session:
         table = session.get(Table, table_id)
@@ -271,49 +278,15 @@ def index_existing_records(table_id: int, column_name: str):
             for col in table.columns:
                 if col.searchable and col.name in record.data:
                     value = record.data[col.name]
-                    if col.data_type == "reference":
-                        # Get the referenced object's display value
-                        if col.is_list:
-                            if isinstance(value, list):
-                                ref_display_values = []
-                                for ref_id in value:
-                                    ref_record = session.get(Record, ref_id)
-                                    if ref_record:
-                                        ref_table = session.get(
-                                            Table, ref_record.table_id
-                                        )
-                                        ref_display = generate_display_value(
-                                            ref_table, ref_record, session
-                                        )
-                                        ref_display_values.append(ref_display)
-                                searchable_data_lower[col.name.lower()] = ", ".join(
-                                    ref_display_values
-                                )
-                            else:
-                                searchable_data_lower[col.name.lower()] = ""
+                    if col.is_list:
+                        if isinstance(value, list):
+                            searchable_data_lower[col.name.lower()] = ", ".join(
+                                map(str, value)
+                            )
                         else:
-                            ref_record_id = value
-                            ref_record = session.get(Record, ref_record_id)
-                            if ref_record:
-                                ref_table = session.get(Table, ref_record.table_id)
-                                ref_display_value = generate_display_value(
-                                    ref_table, ref_record, session
-                                )
-                                searchable_data_lower[col.name.lower()] = (
-                                    ref_display_value
-                                )
-                            else:
-                                searchable_data_lower[col.name.lower()] = ""
+                            searchable_data_lower[col.name.lower()] = str(value)
                     else:
-                        if col.is_list:
-                            if isinstance(value, list):
-                                searchable_data_lower[col.name.lower()] = ", ".join(
-                                    map(str, value)
-                                )
-                            else:
-                                searchable_data_lower[col.name.lower()] = str(value)
-                        else:
-                            searchable_data_lower[col.name.lower()] = value
+                        searchable_data_lower[col.name.lower()] = value
 
             # Generate display values
             display_value = generate_display_value(table, record, session)
